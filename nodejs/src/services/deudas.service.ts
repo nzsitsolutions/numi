@@ -38,7 +38,6 @@ export default {
             .single();
     },
     deleteAsync: (id: string) => {
-        // Soft delete — la marcamos como Saldada en vez de borrarla
         return supabase.from("deudas_extra").update({ estado: "Saldada" }).eq("id", id);
     },
     calcularVOs: (deuda: any) => {
