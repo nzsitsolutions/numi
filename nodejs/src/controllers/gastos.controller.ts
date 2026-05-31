@@ -1,3 +1,4 @@
+import { GastoDto } from "../../shared/models/gasto-dto.js";
 import gastos_service from "../services/gastos.service.js";
 
 export default {
@@ -13,7 +14,13 @@ export default {
 
         if (error) return res.status(500).json(error);
 
-        res.status(200).json(data[0]);
+        let ingreso: GastoDto = {
+            id: data[0].id,
+            nombre: data[0].nombre,
+            cuotasTotal: data[0].cuotas_total
+        };
+
+        res.status(200).json(ingreso);
     },
     create: async (req: any, res: any) => {
         const { data, error } = await gastos_service.insertAsync(req.body.data);
