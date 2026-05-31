@@ -1,19 +1,18 @@
 import supabase from "../config/supabase.js";
-
 export default {
     getListAsync: () => {
         return supabase.from("ingresos").select("*");
     },
-    firstOrDefaultAsync: (id: string) => {
+    firstOrDefaultAsync: (id) => {
         return supabase.from("ingresos").select("*").eq("id", id);
     },
-    insertAsync: (data: any) => {
+    insertAsync: (data) => {
         return supabase.from("ingresos").insert(data).select("*");
     },
-    deleteAsync: (id: string) => {
+    deleteAsync: (id) => {
         return supabase.from("ingresos").delete().eq("id", id);
     },
-    updateAsync: (id: string, data: any) => {
+    updateAsync: (id, data) => {
         return supabase.from("ingresos").update(data).eq("id", id);
     }
-}
+};

@@ -1,46 +1,52 @@
-import { GastoDto } from "../../shared/models/gasto-dto.js";
-import gastos_service from "../services/gastos.service.js";
+import gastosService from "../services/gastos.service.js";
 
 export default {
     getList: async (req: any, res: any) => {
-        const { data, error } = await gastos_service.getListAsync();
+        const { data, error } = await gastosService.getListAsync();
 
         if (error) return res.status(500).json(error);
 
         res.status(200).json(data);
     },
     getById: async (req: any, res: any) => {
-        const { data, error } = await gastos_service.firstOrDefaultAsync(req.params.id);
+        const { data, error } = await gastosService.firstOrDefaultAsync(req.params.id);
 
         if (error) return res.status(500).json(error);
 
-        let ingreso: GastoDto = {
-            id: data[0].id,
-            nombre: data[0].nombre,
-            cuotasTotal: data[0].cuotas_total
-        };
-
-        res.status(200).json(ingreso);
+        res.status(200).json(data[0]);
     },
     create: async (req: any, res: any) => {
-        const { data, error } = await gastos_service.insertAsync(req.body.data);
+        const { data, error } = await gastosService.insertAsync(req.body.data);
 
         if (error) return res.status(500).json(error);
 
-        res.status(200).json(data);
+        res.status(201).json(data);
     },
     delete: async (req: any, res: any) => {
-        const { data, error } = await gastos_service.deleteAsync(req.params.id);
+        const { data, error } = await gastosService.deleteAsync(req.params.id);
 
         if (error) return res.status(500).json(error);
 
         res.status(200).json(data);
     },
     update: async (req: any, res: any) => {
-        const { data, error } = await gastos_service.updateAsync(req.params.id, req.body.data);
+        const { data, error } = await gastosService.updateAsync(req.params.id, req.body.data);
 
         if (error) return res.status(500).json(error);
 
         res.status(200).json(data);
+    },
+    pagarCuota: async (req: any, res: any) => {
+        const { data, error } = await gastosService.firstOrDefaultAsync(req.params.id);
+
+        if (error) return res.status(500).json(error);
+
+        const { data: updated, error: paymentError } = await gastosService.pagarCuota(data[0]);
+
+        if (paymentError) return res.status(500).json(paymentError);
+
+        let gastoPagado = gastosService.calcularVOs(updated);
+
+        res.status(200).json(gastoPagado);
     }
 }
