@@ -1,10 +1,12 @@
 import express from "express";
 import { config } from "dotenv";
-import userController from "./src/controllers/userController.js";
+import ingresos_routes from "./src/routes/ingresos.routes.js";
+import gastos_routes from "./src/routes/gastos.routes.js";
 import cors from "cors";
 config();
 
 const PORT = process.env.PORT;
+const baseUrl = process.env.BASE_URL;
 const app = express();
 
 app.listen(PORT, () => {
@@ -17,4 +19,5 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use("/user", userController);
+app.use(`${baseUrl}/ingreso`, ingresos_routes);
+app.use(`${baseUrl}/gasto`, gastos_routes);
