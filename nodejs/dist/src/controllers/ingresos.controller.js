@@ -1,38 +1,36 @@
 import ingresos_service from "../services/ingresos.service.js";
+import { single, list } from "../utils/response.js";
 export default {
     getList: async (req, res) => {
-        const { data, error } = await ingresos_service.getListAsync();
+        const { data, error } = await ingresos_service.getListAsync(req.query.periodo);
         if (error)
             return res.status(500).json(error);
-        res.status(200).json(data);
+        res.status(200).json(list((data ?? []).map((i) => ingresos_service.calcularVOs(i))));
     },
     getById: async (req, res) => {
         const { data, error } = await ingresos_service.firstOrDefaultAsync(req.params.id);
         if (error)
             return res.status(500).json(error);
-        let ingreso = {
-            id: data[0].id,
-            montoARS: data[0].monto_ars,
-            moneda: "ARS"
-        };
-        res.status(200).json(ingreso);
+        if (!data || data.length === 0)
+            return res.status(404).json({ message: "ingreso no encontrado" });
+        res.status(200).json(single(ingresos_service.calcularVOs(data[0])));
     },
     create: async (req, res) => {
-        const { data, error } = await ingresos_service.insertAsync(req.body.data);
+        const { data, error } = await ingresos_service.insertAsync(req.body);
         if (error)
             return res.status(500).json(error);
-        res.status(200).json(data);
+        res.status(201).json(single(ingresos_service.calcularVOs(data)));
     },
     delete: async (req, res) => {
-        const { data, error } = await ingresos_service.deleteAsync(req.params.id);
+        const { error } = await ingresos_service.deleteAsync(req.params.id);
         if (error)
             return res.status(500).json(error);
-        res.status(200).json(data);
+        res.status(204).send();
     },
     update: async (req, res) => {
-        const { data, error } = await ingresos_service.updateAsync(req.params.id, req.body.data);
+        const { data, error } = await ingresos_service.updateAsync(req.params.id, req.body);
         if (error)
             return res.status(500).json(error);
-        res.status(200).json(data);
-    }
+        res.status(200).json(single(ingresos_service.calcularVOs(data)));
+    },
 };

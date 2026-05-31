@@ -1,7 +1,7 @@
-export type TipoGasto = 'Fijo' | 'Cuotas'
+export type TipoGasto = 'fijo' | 'cuotas'
 export type Moneda = 'ARS' | 'USD'
-export type OrigenImportacion = 'NaranjaX' | 'BBVA' | 'MercadoPago' | 'Manual'
-export type EstadoRevision = 'Pendiente' | 'Confirmado' | 'Descartado'
+export type OrigenImportacion = 'naranjax' | 'BBVA' | 'mercado_pago' | 'manual'
+export type EstadoRevision = 'pendiente' | 'confirmado' | 'descartado'
 
 export interface GastoCalculado {
     cuotasRestantes: number

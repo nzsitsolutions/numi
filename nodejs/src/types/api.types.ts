@@ -3,7 +3,7 @@ import { Moneda } from "./database.types.js";
 // ─── GASTOS ─────────────────────────────────────────────────
 export interface CreateGastoDto {
     nombre: string
-    tipo: 'Fijo' | 'Cuotas'
+    tipo: 'fijo' | 'cuotas'
     cuotasTotal?: number
     cuotasPagadas: number
     montoARS: number
@@ -56,13 +56,13 @@ export interface CreateDeudaDto {
 }
 
 export interface UpdateDeudaDto extends Partial<CreateDeudaDto> {
-    estado?: 'Activa' | 'Saldada'
+    estado?: 'activa' | 'saldada'
 }
 
 // ─── IMPORTACIONES ──────────────────────────────────────────
 export interface ConfirmarMovimientoDto {
     nombre: string
-    tipo: 'Fijo' | 'Cuotas'
+    tipo: 'fijo' | 'cuotas'
     cuotasTotal?: number
     tarjetaId?: string
 }

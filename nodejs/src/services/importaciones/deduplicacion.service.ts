@@ -1,7 +1,7 @@
 import supabase from "../../config/supabase.js";
 
 export interface MovimientoRaw {
-    fecha: string;       // "2025-05-15"
+    fecha: string;     
     descripcion: string;
     montoARS: number;
     cuotaActual: number | null;
@@ -9,7 +9,6 @@ export interface MovimientoRaw {
     origen: string;
 }
 
-// Clave de comparación: fecha (solo día) + descripción normalizada + monto
 const claveDe = (fecha: any, descripcion: string, montoARS: number): string => {
     const f = String(fecha).slice(0, 10);
     const d = (descripcion ?? "").trim().toUpperCase().replace(/\s+/g, " ");
@@ -17,7 +16,6 @@ const claveDe = (fecha: any, descripcion: string, montoARS: number): string => {
 };
 
 export default {
-    // Opción B: deduplica en memoria comparando contra lo ya importado, sin guardar hash
     filtrarNuevos: async (
         movimientos: MovimientoRaw[],
     ): Promise<{ nuevos: MovimientoRaw[]; duplicados: number }> => {

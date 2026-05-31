@@ -6,7 +6,7 @@ create table if not exists public.gastos (
     created_at      timestamptz not null    default now(),
     updated_at      timestamptz not null    default now(),
     nombre          varchar     not null,
-    tipo            text        not null,            -- 'Fijo' | 'Cuotas'
+    tipo            text        not null,            -- 'fijo' | 'cuotas'
     cuotas_total    bigint,
     cuotas_pagadas  bigint      not null    default 0,
     monto_ars       numeric     not null    default 0,
@@ -56,7 +56,7 @@ create table if not exists public.deudas_extra (
     monto           numeric     not null    default 0,
     moneda          text,                            -- 'ARS' | 'USD'
     observaciones   varchar,
-    estado          text        not null    default 'Activa'  -- 'Activa' | 'Saldada'
+    estado          text        not null    default 'activa'  -- 'activa' | 'saldada'
 );
 
 -- ────────────────────────────────────────────────────────────
@@ -80,13 +80,13 @@ create table if not exists public.movimientos_importados (
     id                  uuid        primary key default gen_random_uuid(),
     created_at          timestamptz not null    default now(),
     updated_at          timestamptz not null    default now(),
-    origen              text,                            -- 'NaranjaX' | 'BBVA' | 'MercadoPago' | 'Manual'
+    origen              text,                            -- 'naranjax' | 'BBVA' | 'mercado_pago' | 'manual'
     fecha               timestamptz,
     descripcion         varchar,
     monto_ars           numeric     not null    default 0,
     cuota_actual        smallint,
     cuotas_total        smallint,
-    estado_revision     text        not null    default 'Pendiente',  -- 'Pendiente' | 'Confirmado' | 'Descartado'
+    estado_revision     text        not null    default 'pendiente',  -- 'pendiente' | 'confirmado' | 'descartado'
     gasto_id            uuid        references public.gastos(id) on delete set null,
     importado_en        timestamptz not null    default now(),
     archivo_origen      varchar
@@ -105,7 +105,7 @@ create index if not exists ix_tarjetas_gasto
     on public.tarjetas (gasto_id) where gasto_id is not null;
 
 create index if not exists ix_movimientos_pendientes
-    on public.movimientos_importados (estado_revision) where estado_revision = 'Pendiente';
+    on public.movimientos_importados (estado_revision) where estado_revision = 'pendiente';
 
 create index if not exists ix_movimientos_gasto
     on public.movimientos_importados (gasto_id) where gasto_id is not null;

@@ -1,0 +1,11 @@
+import { Router } from "express";
+import periodosController from "../controllers/periodos.controller.js";
+import { validateBody } from "../middleware/validate.middleware.js";
+import { createPeriodoSchema, updateTipoCambioSchema } from "../validators/periodos.validator.js";
+const router = Router();
+router.get("/", periodosController.getList);
+router.get("/:anio/:mes", periodosController.getOne);
+router.get("/:anio/:mes/resumen", periodosController.getResumen);
+router.post("/", validateBody(createPeriodoSchema), periodosController.create);
+router.patch("/:anio/:mes/tipo-cambio", validateBody(updateTipoCambioSchema), periodosController.updateTipoCambio);
+export default router;

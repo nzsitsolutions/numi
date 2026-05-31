@@ -2,11 +2,9 @@ import supabase from "../../config/supabase.js";
 import gastosService from "../gastos.service.js";
 import driveService from "./drive.service.js";
 import naranjaxParser from "./naranjax.parser.js";
-import deduplicacionService, { MovimientoRaw } from "./deduplicacion.service.js";
-import { ConfirmarMovimientoDto, ImportacionResultDto } from "../../types/api.types.js";
-
+import deduplicacionService from "./deduplicacion.service.js";
 // Helper compartido: arma las filas e inserta movimientos como Pendiente
-const insertMovimientos = (movimientos: MovimientoRaw[], archivoOrigen?: string) => {
+const insertMovimientos = (movimientos, archivoOrigen) => {
     const filas = movimientos.map((m) => ({
         origen: m.origen,
         fecha: m.fecha,
@@ -19,7 +17,6 @@ const insertMovimientos = (movimientos: MovimientoRaw[], archivoOrigen?: string)
     }));
     return supabase.from("movimientos_importados").insert(filas).select("*");
 };
-
 export default {
     getPendientesAsync: () => {
         return supabase
@@ -28,58 +25,58 @@ export default {
             .eq("estado_revision", "pendiente")
             .order("fecha", { ascending: false });
     },
-    firstOrDefaultAsync: (id: string) => {
+    firstOrDefaultAsync: (id) => {
         return supabase.from("movimientos_importados").select("*").eq("id", id);
     },
-    insertManyAsync: (movimientos: MovimientoRaw[], archivoOrigen?: string) => {
+    insertManyAsync: (movimientos, archivoOrigen) => {
         return insertMovimientos(movimientos, archivoOrigen);
     },
-    procesarBufferAsync: async (buffer: Buffer, archivoOrigen?: string): Promise<ImportacionResultDto> => {
+    // Procesa un PDF ya en memoria (upload directo): parse -> dedup -> insert
+    procesarBufferAsync: async (buffer, archivoOrigen) => {
         const movimientos = await naranjaxParser.parsearBufferAsync(buffer);
         const { nuevos, duplicados } = await deduplicacionService.filtrarNuevos(movimientos);
-
         if (nuevos.length > 0) {
             const { error } = await insertMovimientos(nuevos, archivoOrigen);
-            if (error) throw new Error(error.message);
+            if (error)
+                throw new Error(error.message);
         }
-
         return { totalEnArchivo: movimientos.length, nuevos: nuevos.length, duplicados, errores: 0 };
     },
-    syncDriveNaranjaXAsync: async (): Promise<ImportacionResultDto> => {
+    // Watcher manual de Drive: por cada PDF nuevo -> download -> parse -> dedup -> insert -> mover
+    syncDriveNaranjaXAsync: async () => {
         const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-        if (!folderId) throw new Error("Falta GOOGLE_DRIVE_FOLDER_ID");
-
+        if (!folderId)
+            throw new Error("Falta GOOGLE_DRIVE_FOLDER_ID");
+        // Estructura: <carpeta principal>/pendientes (origen) y /procesados (destino)
         const pendientesId = await driveService.getSubfolderIdAsync(folderId, "pendientes");
         const procesadosId = await driveService.getSubfolderIdAsync(folderId, "procesados");
         const archivos = await driveService.listarPdfsAsync(pendientesId);
-
-        const result: ImportacionResultDto = { totalEnArchivo: 0, nuevos: 0, duplicados: 0, errores: 0 };
-
+        const result = { totalEnArchivo: 0, nuevos: 0, duplicados: 0, errores: 0 };
         for (const archivo of archivos) {
             try {
                 const buffer = await driveService.descargarAsync(archivo.id);
                 const movimientos = await naranjaxParser.parsearBufferAsync(buffer);
                 const { nuevos, duplicados } = await deduplicacionService.filtrarNuevos(movimientos);
-
                 if (nuevos.length > 0) {
                     const { error } = await insertMovimientos(nuevos, archivo.name);
-                    if (error) throw new Error(error.message);
+                    if (error)
+                        throw new Error(error.message);
                 }
-
+                // Solo movemos el archivo si todo lo anterior salió bien
                 await driveService.moverAsync(archivo.id, pendientesId, procesadosId);
-
                 result.totalEnArchivo += movimientos.length;
                 result.nuevos += nuevos.length;
                 result.duplicados += duplicados;
-            } catch (e) {
+            }
+            catch (e) {
                 result.errores++;
-                console.error(`[importacion] error procesando ${archivo.name}:`, (e as Error).message);
+                console.error(`[importacion] error procesando ${archivo.name}:`, e.message);
             }
         }
-
         return result;
     },
-    confirmarAsync: async (movimiento: any, dto: ConfirmarMovimientoDto) => {
+    // Confirma un movimiento: crea el gasto real y marca el movimiento como Confirmado
+    confirmarAsync: async (movimiento, dto) => {
         const { data: gasto, error: gastoError } = await gastosService.insertAsync({
             nombre: dto.nombre,
             tipo: dto.tipo,
@@ -89,19 +86,17 @@ export default {
             tarjetaId: dto.tarjetaId,
             fechaInicio: movimiento.fecha,
         });
-
-        if (gastoError) return { data: null, error: gastoError };
-
+        if (gastoError)
+            return { data: null, error: gastoError };
         const { error: movError } = await supabase
             .from("movimientos_importados")
             .update({ estado_revision: "confirmado", gasto_id: gasto.id })
             .eq("id", movimiento.id);
-
-        if (movError) return { data: null, error: movError };
-
+        if (movError)
+            return { data: null, error: movError };
         return { data: gasto, error: null };
     },
-    descartarAsync: (id: string) => {
+    descartarAsync: (id) => {
         return supabase
             .from("movimientos_importados")
             .update({ estado_revision: "descartado" })

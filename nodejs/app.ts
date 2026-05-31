@@ -14,13 +14,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Prefijo global /api — monta todos los sub-routers
 app.use("/api", router);
 
-// Health check
 app.get("/health", (_req, res) => { res.json({ ok: true }); });
 
-// Handler global de errores — SIEMPRE al final
 app.use(errorMiddleware);
 
 app.listen(PORT, () => {

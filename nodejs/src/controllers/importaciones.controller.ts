@@ -3,6 +3,7 @@ import { single, list } from "../utils/response.js";
 
 export default {
     getPendientes: async (req: any, res: any) => {
+        console.log("pendientes...");
         const { data, error } = await importacionesService.getPendientesAsync();
 
         if (error) return res.status(500).json(error);
@@ -32,14 +33,29 @@ export default {
         res.status(200).json(single(data));
     },
 
-    // ─── Pendientes de implementar (requieren dependencias/credenciales/muestras) ───
-    // Necesitan: multer + pdf-parse (parser NaranjaX), googleapis (Drive), API MercadoPago.
-    uploadNaranjaX: async (_req: any, res: any) => {
-        res.status(501).json({ message: "Upload/parser NaranjaX aún no implementado" });
+    uploadNaranjaX: async (req: any, res: any) => {
+        if (!req.file) return res.status(400).json({ message: "Falta el archivo (campo 'archivo')" });
+        try {
+            const result = await importacionesService.procesarBufferAsync(
+                req.file.buffer,
+                req.file.originalname,
+            );
+            res.status(200).json(single(result));
+        } catch (e: any) {
+            res.status(500).json({ message: e.message });
+        }
     },
+
     syncDriveNaranjaX: async (_req: any, res: any) => {
-        res.status(501).json({ message: "Sync de Google Drive aún no implementado" });
+        console.log("drive sync...");
+        try {
+            const result = await importacionesService.syncDriveNaranjaXAsync();
+            res.status(200).json(single(result));
+        } catch (e: any) {
+            res.status(500).json({ message: e.message });
+        }
     },
+
     syncMercadoPago: async (_req: any, res: any) => {
         res.status(501).json({ message: "Sync de MercadoPago aún no implementado" });
     },
