@@ -12,6 +12,7 @@ export default {
         return supabase
             .from("tarjetas")
             .insert({
+                nombre: dto.nombre,
                 limite_usd: dto.limiteUSD,
                 fecha_cierre: dto.fechaCierre,
                 fecha_vencimiento: dto.fechaVencimiento,
@@ -25,6 +26,7 @@ export default {
         return supabase
             .from("tarjetas")
             .update({
+                ...(dto.nombre !== undefined && { nombre: dto.nombre }),
                 ...(dto.limiteUSD !== undefined && { limite_usd: dto.limiteUSD }),
                 ...(dto.fechaCierre !== undefined && { fecha_cierre: dto.fechaCierre }),
                 ...(dto.fechaVencimiento !== undefined && { fecha_vencimiento: dto.fechaVencimiento }),
@@ -41,6 +43,7 @@ export default {
     calcularVOs: (tarjeta: any) => {
         return {
             id: tarjeta.id,
+            nombre: tarjeta.nombre,
             limiteUSD: tarjeta.limite_usd,
             fechaCierre: tarjeta.fecha_cierre,
             fechaVencimiento: tarjeta.fecha_vencimiento,

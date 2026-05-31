@@ -3,9 +3,8 @@ import gastosService from "../gastos.service.js";
 import driveService from "./drive.service.js";
 import naranjaxParser from "./naranjax.parser.js";
 import deduplicacionService, { MovimientoRaw } from "./deduplicacion.service.js";
-import { ConfirmarMovimientoDto, ImportacionResultDto } from "../../types/api.types.js";
+import { ImportacionResultDto } from "../../types/api.types.js";
 
-// Helper compartido: arma las filas e inserta movimientos como Pendiente
 const insertMovimientos = (movimientos: MovimientoRaw[], archivoOrigen?: string) => {
     const filas = movimientos.map((m) => ({
         origen: m.origen,
@@ -79,18 +78,32 @@ export default {
 
         return result;
     },
-    confirmarAsync: async (movimiento: any, dto: ConfirmarMovimientoDto) => {
+    confirmarAsync: async (movimiento: any) => {
+        const tipo: "fijo" | "cuotas" = movimiento.cuotas_total != null ? "cuotas" : "fijo";
+
+        const { data: tarjeta, error: tarjetaError } = await supabase
+            .from("tarjetas")
+            .select("id")
+            .eq("nombre", movimiento.origen)
+            .maybeSingle();
+
+        if (tarjetaError) return { data: null, error: { message: tarjetaError.message } };
+        if (!tarjeta) {
+            return { data: null, error: { message: `No existe una tarjeta con nombre '${movimiento.origen}'` } };
+        }
+
         const { data: gasto, error: gastoError } = await gastosService.insertAsync({
-            nombre: dto.nombre,
-            tipo: dto.tipo,
-            cuotasTotal: dto.cuotasTotal ?? movimiento.cuotas_total ?? undefined,
+            nombre: movimiento.descripcion,
+            tipo,
+            cuotasTotal: movimiento.cuotas_total ?? undefined,
             cuotasPagadas: movimiento.cuota_actual ?? 0,
             montoARS: movimiento.monto_ars,
-            tarjetaId: dto.tarjetaId,
             fechaInicio: movimiento.fecha,
         });
 
         if (gastoError) return { data: null, error: gastoError };
+
+        await supabase.from("tarjetas").update({ gasto_id: gasto.id }).eq("id", tarjeta.id);
 
         const { error: movError } = await supabase
             .from("movimientos_importados")

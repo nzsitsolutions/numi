@@ -16,10 +16,7 @@ export default {
         if (error) return res.status(500).json(error);
         if (!data || data.length === 0) return res.status(404).json({ message: "movimiento no encontrado" });
 
-        const { data: gasto, error: confirmError } = await importacionesService.confirmarAsync(
-            data[0],
-            req.body,
-        );
+        const { data: gasto, error: confirmError } = await importacionesService.confirmarAsync(data[0]);
 
         if (confirmError) return res.status(500).json(confirmError);
 

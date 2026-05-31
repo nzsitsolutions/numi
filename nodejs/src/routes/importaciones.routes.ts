@@ -1,14 +1,12 @@
 import { Router } from "express";
 import multer from "multer";
 import importacionesController from "../controllers/importaciones.controller.js";
-import { validateBody } from "../middleware/validate.middleware.js";
-import { confirmarMovimientoSchema } from "../validators/deudas.validator.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10_000_000 } });
 
 router.get("/pendientes", importacionesController.getPendientes);
-router.patch("/:id/confirmar", validateBody(confirmarMovimientoSchema), importacionesController.confirmar);
+router.patch("/:id/confirmar", importacionesController.confirmar);
 router.patch("/:id/descartar", importacionesController.descartar);
 
 router.post("/naranjax/upload", upload.single("archivo"), importacionesController.uploadNaranjaX);

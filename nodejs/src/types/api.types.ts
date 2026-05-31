@@ -28,6 +28,7 @@ export interface UpdateIngresoDto extends Partial<CreateIngresoDto> { }
 
 // ─── TARJETAS ───────────────────────────────────────────────
 export interface CreateTarjetaDto {
+    nombre: string              // 'NaranjaX' | 'BBVA' | 'Mercado Pago' ...
     limiteUSD: number
     fechaCierre: string         // ISO date
     fechaVencimiento: string    // ISO date

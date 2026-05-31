@@ -80,7 +80,7 @@ create table if not exists public.movimientos_importados (
     id                  uuid        primary key default gen_random_uuid(),
     created_at          timestamptz not null    default now(),
     updated_at          timestamptz not null    default now(),
-    origen              text,                            -- 'naranjax' | 'BBVA' | 'mercado_pago' | 'manual'
+    origen              text,                            -- 'NaranjaX' | 'BBVA' | 'Mercado Pago' | 'Manual'
     fecha               timestamptz,
     descripcion         varchar,
     monto_ars           numeric     not null    default 0,
