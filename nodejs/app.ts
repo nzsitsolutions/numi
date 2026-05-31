@@ -1,23 +1,30 @@
 import express from "express";
 import { config } from "dotenv";
-import ingresosRouter from "./src/routes/ingresos.routes.js";
-import gastosRouter from "./src/routes/gastos.routes.js";
 import cors from "cors";
+import router from "./src/routes/index.js";
+import { errorMiddleware } from "./src/middleware/error.middleware.js";
 config();
 
-const PORT = process.env.PORT;
-const baseUrl = process.env.BASE_URL;
+const PORT = process.env.PORT ?? 3000;
 const app = express();
 
-app.listen(PORT, () => {
-    console.log(`server initialized at http://localhost:${PORT}`);
-})
-
 app.use(cors({
-    origin: "http://localhost:4200"
-}))
+    origin: process.env.FRONTEND_URL ?? "http://localhost:4200",
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use(`${baseUrl}/ingreso`, ingresosRouter);
-app.use(`${baseUrl}/gasto`, gastosRouter);
+// Prefijo global /api — monta todos los sub-routers
+app.use("/api", router);
+
+// Health check
+app.get("/health", (_req, res) => { res.json({ ok: true }); });
+
+// Handler global de errores — SIEMPRE al final
+app.use(errorMiddleware);
+
+app.listen(PORT, () => {
+    console.log(`server initialized at http://localhost:${PORT}`);
+});
+
+export default app;

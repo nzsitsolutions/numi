@@ -1,19 +1,56 @@
 import supabase from "../config/supabase.js";
+import { CreateIngresoDto, UpdateIngresoDto } from "../types/api.types.js";
+import { IngresoDto } from "../types/ingreso-dto.js";
 
 export default {
-    getListAsync: () => {
-        return supabase.from("ingresos").select("*");
+    getListAsync: (periodo?: string) => {
+        const query = supabase.from("ingresos").select("*").order("periodo", { ascending: false });
+        return periodo ? query.eq("periodo", periodo) : query;
     },
     firstOrDefaultAsync: (id: string) => {
         return supabase.from("ingresos").select("*").eq("id", id);
     },
-    insertAsync: (data: any) => {
-        return supabase.from("ingresos").insert(data).select("*");
+    insertAsync: (dto: CreateIngresoDto) => {
+        return supabase
+            .from("ingresos")
+            .insert({
+                descripcion: dto.descripcion,
+                monto_ars: dto.montoARS,
+                monto_usd: dto.montoUSD ?? 0,
+                moneda: dto.moneda,
+                periodo: dto.periodo,
+                tipo_cambio: dto.tipoCambio ?? null,
+            })
+            .select("*")
+            .single();
+    },
+    updateAsync: (id: string, dto: UpdateIngresoDto) => {
+        return supabase
+            .from("ingresos")
+            .update({
+                ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
+                ...(dto.montoARS !== undefined && { monto_ars: dto.montoARS }),
+                ...(dto.montoUSD !== undefined && { monto_usd: dto.montoUSD }),
+                ...(dto.moneda !== undefined && { moneda: dto.moneda }),
+                ...(dto.periodo !== undefined && { periodo: dto.periodo }),
+                ...(dto.tipoCambio !== undefined && { tipo_cambio: dto.tipoCambio }),
+            })
+            .eq("id", id)
+            .select("*")
+            .single();
     },
     deleteAsync: (id: string) => {
         return supabase.from("ingresos").delete().eq("id", id);
     },
-    updateAsync: (id: string, data: any) => {
-        return supabase.from("ingresos").update(data).eq("id", id);
-    }
-}
+    calcularVOs: (ingreso: any): IngresoDto => {
+        return {
+            id: ingreso.id,
+            descripcion: ingreso.descripcion,
+            montoARS: ingreso.monto_ars,
+            montoUSD: ingreso.monto_usd,
+            moneda: ingreso.moneda,
+            periodo: ingreso.periodo,
+            tipoCambio: ingreso.tipo_cambio,
+        };
+    },
+};

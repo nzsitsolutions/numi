@@ -1,56 +1,91 @@
 import supabase from "../config/supabase.js";
+import { CreateGastoDto, UpdateGastoDto } from "../types/api.types.js";
+import { GastoConCalculo } from "../types/database.types.js";
 
 export default {
     getListAsync: () => {
-        return supabase.from("gastos").select("*");
+        return supabase
+            .from("gastos")
+            .select("*")
+            .eq("activo", true)
+            .order("nombre");
     },
     firstOrDefaultAsync: (id: string) => {
         return supabase.from("gastos").select("*").eq("id", id);
     },
-    insertAsync: (data: any) => {
-        return supabase.from("gastos").insert(data).select("*");
+    insertAsync: (dto: CreateGastoDto) => {
+        return supabase
+            .from("gastos")
+            .insert({
+                nombre: dto.nombre,
+                tipo: dto.tipo,
+                cuotas_total: dto.cuotasTotal ?? null,
+                cuotas_pagadas: dto.cuotasPagadas ?? 0,
+                monto_ars: dto.montoARS,
+                monto_usd: dto.montoUSD ?? 0,
+                fecha_inicio: dto.fechaInicio,
+                activo: true,
+            })
+            .select("*")
+            .single();
+    },
+    updateAsync: (id: string, dto: UpdateGastoDto) => {
+        return supabase
+            .from("gastos")
+            .update({
+                ...(dto.nombre !== undefined && { nombre: dto.nombre }),
+                ...(dto.tipo !== undefined && { tipo: dto.tipo }),
+                ...(dto.cuotasTotal !== undefined && { cuotas_total: dto.cuotasTotal }),
+                ...(dto.cuotasPagadas !== undefined && { cuotas_pagadas: dto.cuotasPagadas }),
+                ...(dto.montoARS !== undefined && { monto_ars: dto.montoARS }),
+                ...(dto.montoUSD !== undefined && { monto_usd: dto.montoUSD }),
+                ...(dto.fechaInicio !== undefined && { fecha_inicio: dto.fechaInicio }),
+            })
+            .eq("id", id)
+            .select("*")
+            .single();
     },
     deleteAsync: (id: string) => {
-        return supabase.from("gastos").delete().eq("id", id);
-    },
-    updateAsync: (id: string, data: any) => {
-        return supabase.from("gastos").update(data).eq("id", id);
+        // Soft delete — nunca borramos datos financieros, solo los desactivamos
+        return supabase.from("gastos").update({ activo: false }).eq("id", id);
     },
     pagarCuota: async (gasto: any) => {
-        if (gasto.tipo.toLowerCase() === "fijo") return { data: null, error: { message: "los gastos fijos no tienen cuotas" } };
+        if (String(gasto.tipo).toLowerCase() === "fijo") {
+            return { data: null, error: { message: "los gastos fijos no tienen cuotas" } };
+        }
 
-        if (gasto.cuotasPagadas >= (gasto.cuotasTotal ?? 0)) {
+        if (gasto.cuotas_pagadas >= (gasto.cuotas_total ?? 0)) {
             return {
                 data: null,
-                error: { message: "no existen cuotas pendientes por pagar" }
+                error: { message: "no existen cuotas pendientes por pagar" },
             };
         }
 
         return supabase
-            .from('gastos')
-            .update({ cuotas_pagadas: gasto.cuotasPagadas + 1 })
-            .eq('id', gasto.id)
+            .from("gastos")
+            .update({ cuotas_pagadas: gasto.cuotas_pagadas + 1 })
+            .eq("id", gasto.id)
             .select()
-            .single()
+            .single();
     },
-    calcularVOs: (gasto: any) => {
-        const esFijo = gasto.tipo.toLowerCase() === 'fijo'
+    calcularVOs: (gasto: any): GastoConCalculo => {
+        const esFijo = String(gasto.tipo).toLowerCase() === "fijo";
 
         const cuotasRestantes = esFijo
             ? 1
-            : (gasto.cuotas_total ?? 0) - gasto.cuotas_pagadas
+            : (gasto.cuotas_total ?? 0) - gasto.cuotas_pagadas;
 
         const montoTotalRestante = esFijo
             ? gasto.monto_ars
-            : gasto.monto_ars * cuotasRestantes
+            : gasto.monto_ars * cuotasRestantes;
 
         const totalAPagar = esFijo
             ? gasto.monto_ars
-            : gasto.monto_ars * (gasto.cuotas_total ?? 0)
+            : gasto.monto_ars * (gasto.cuotas_total ?? 0);
 
         const avancePorcentaje = gasto.cuotas_total && gasto.cuotas_total > 0
             ? (gasto.cuotas_pagadas / gasto.cuotas_total) * 100
-            : gasto.cuotas_pagadas > 0 ? 100 : 0
+            : gasto.cuotas_pagadas > 0 ? 100 : 0;
 
         return {
             id: gasto.id,
@@ -67,6 +102,6 @@ export default {
             montoTotalRestante,
             totalAPagar,
             avancePorcentaje: Math.round(avancePorcentaje * 100) / 100,
-        }
-    }
-}
+        };
+    },
+};

@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import gastosController from '../controllers/gastos.controller.js';
 import { validateBody } from '../middleware/validate.middleware.js';
-// import { createGastoSchema, updateGastoSchema } from '../validators/gastos.validator'
+import { createGastoSchema, updateGastoSchema } from '../validators/gastos.validator.js';
 
 const router = Router();
 
 router.get('/', gastosController.getList);
 router.get('/:id', gastosController.getById);
-router.post('/', gastosController.create);
-router.patch('/:id', gastosController.update);
+router.post('/', validateBody(createGastoSchema), gastosController.create);
+router.patch('/:id', validateBody(updateGastoSchema), gastosController.update);
 router.delete('/:id', gastosController.delete);
 router.post('/:id/pagar-cuota', gastosController.pagarCuota);
 

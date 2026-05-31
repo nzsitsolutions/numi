@@ -40,10 +40,10 @@ export interface ResumenMensual {
     totalIngresosUSD: number
     tarjetas: {
         id: string
-        nombre: string
         limiteUSD: number
         usadoUSD: number
-        diaCierre: number
+        fechaCierre: string
+        esNoTarjeta: boolean
     }[]
     deudasExtras: {
         descripcion: string
