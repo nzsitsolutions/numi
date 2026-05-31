@@ -1,5 +1,6 @@
 import express from "express";
 import { config } from "dotenv";
+import userController from "./src/controllers/userController.js";
 import cors from "cors";
 config();
 
@@ -16,6 +17,4 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use((req, res, next) => {
-    res.send("hello world!");
-})
+app.use("/user", userController);
