@@ -13,7 +13,7 @@ export default {
 
         if (error) return res.status(500).json(error);
 
-        res.status(200).json(data);
+        res.status(200).json(data[0]);
     },
     create: async (req: any, res: any) => {
         const { data, error } = await ingresos_service.insertAsync(req.body.data);
