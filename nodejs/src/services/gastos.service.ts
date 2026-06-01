@@ -24,6 +24,7 @@ export default {
                 monto_ars: dto.montoARS,
                 monto_usd: dto.montoUSD ?? 0,
                 fecha_inicio: dto.fechaInicio,
+                tarjeta_id: dto.tarjetaId ?? null,
                 activo: true,
             })
             .select("*")
@@ -40,6 +41,7 @@ export default {
                 ...(dto.montoARS !== undefined && { monto_ars: dto.montoARS }),
                 ...(dto.montoUSD !== undefined && { monto_usd: dto.montoUSD }),
                 ...(dto.fechaInicio !== undefined && { fecha_inicio: dto.fechaInicio }),
+                ...(dto.tarjetaId !== undefined && { tarjeta_id: dto.tarjetaId }),
             })
             .eq("id", id)
             .select("*")

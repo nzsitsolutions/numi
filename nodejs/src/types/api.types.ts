@@ -32,8 +32,6 @@ export interface CreateTarjetaDto {
     limiteUSD: number
     fechaCierre: string         // ISO date
     fechaVencimiento: string    // ISO date
-    gastoId?: string            // gasto al que se vincula la tarjeta
-    esNoTarjeta?: boolean
 }
 
 export interface UpdateTarjetaDto extends Partial<CreateTarjetaDto> { }

@@ -29,15 +29,8 @@ export default {
         const tarjetasData = tarjetas.data ?? [];
         const deudasData = deudas.data ?? [];
 
-        // La relación es tarjetas.gasto_id → mapeamos qué gasto está financiado con tarjeta real
-        const tarjetaPorGasto = new Map<string, any>();
-        for (const t of tarjetasData) {
-            if (t.gasto_id) tarjetaPorGasto.set(t.gasto_id, t);
-        }
-        const tieneTarjetaReal = (gastoId: string): boolean => {
-            const t = tarjetaPorGasto.get(gastoId);
-            return !!t && !t.es_no_tarjeta;
-        };
+        // La relación es gastos.tarjeta_id → sin tarjeta = tarjeta_id NULL
+        const tieneTarjeta = (g: any): boolean => g.tarjeta_id != null;
 
         // Cuota mensual de cada gasto — lo que efectivamente paga este mes
         const cuotaMensual = (g: any): number => {
@@ -47,8 +40,8 @@ export default {
             return g.monto_ars;
         };
 
-        const gastosConTarjeta = gastosData.filter((g) => tieneTarjetaReal(g.id));
-        const gastosSinTarjeta = gastosData.filter((g) => !tieneTarjetaReal(g.id));
+        const gastosConTarjeta = gastosData.filter((g) => tieneTarjeta(g));
+        const gastosSinTarjeta = gastosData.filter((g) => !tieneTarjeta(g));
 
         const tarjetasMensualARS = gastosConTarjeta.reduce((s, g) => s + cuotaMensual(g), 0);
         const noTarjetasMensualARS = gastosSinTarjeta.reduce((s, g) => s + cuotaMensual(g), 0);
@@ -77,18 +70,16 @@ export default {
             totalIngresosARS,
             totalIngresosUSD,
             tarjetas: tarjetasData.map((t) => {
-                const gasto = gastosData.find((g) => g.id === t.gasto_id);
-                const usadoUSD = gasto
-                    ? gasto.monto_usd > 0
-                        ? gasto.monto_usd
-                        : gasto.monto_ars / tipoCambio
-                    : 0;
+                // usadoUSD: suma de todos los gastos de esta tarjeta (USD directo o ARS convertido)
+                const usadoUSD = gastosData
+                    .filter((g) => g.tarjeta_id === t.id)
+                    .reduce((s, g) => s + (g.monto_usd > 0 ? g.monto_usd : g.monto_ars / tipoCambio), 0);
                 return {
                     id: t.id,
+                    nombre: t.nombre,
                     limiteUSD: t.limite_usd,
                     usadoUSD,
                     fechaCierre: t.fecha_cierre,
-                    esNoTarjeta: t.es_no_tarjeta,
                 };
             }),
             deudasExtras: deudasData.map((d) => ({

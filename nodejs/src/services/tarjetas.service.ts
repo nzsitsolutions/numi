@@ -16,8 +16,6 @@ export default {
                 limite_usd: dto.limiteUSD,
                 fecha_cierre: dto.fechaCierre,
                 fecha_vencimiento: dto.fechaVencimiento,
-                gasto_id: dto.gastoId ?? null,
-                es_no_tarjeta: dto.esNoTarjeta ?? false,
             })
             .select("*")
             .single();
@@ -30,8 +28,6 @@ export default {
                 ...(dto.limiteUSD !== undefined && { limite_usd: dto.limiteUSD }),
                 ...(dto.fechaCierre !== undefined && { fecha_cierre: dto.fechaCierre }),
                 ...(dto.fechaVencimiento !== undefined && { fecha_vencimiento: dto.fechaVencimiento }),
-                ...(dto.gastoId !== undefined && { gasto_id: dto.gastoId }),
-                ...(dto.esNoTarjeta !== undefined && { es_no_tarjeta: dto.esNoTarjeta }),
             })
             .eq("id", id)
             .select("*")
@@ -47,8 +43,6 @@ export default {
             limiteUSD: tarjeta.limite_usd,
             fechaCierre: tarjeta.fecha_cierre,
             fechaVencimiento: tarjeta.fecha_vencimiento,
-            gastoId: tarjeta.gasto_id,
-            esNoTarjeta: tarjeta.es_no_tarjeta,
         };
     },
 };

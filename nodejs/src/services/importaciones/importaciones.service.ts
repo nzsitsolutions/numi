@@ -127,6 +127,7 @@ export default {
             return { data: null, error: { message: `No existe una tarjeta con nombre '${movimiento.origen}'` } };
         }
 
+        // La relación vive en gastos.tarjeta_id -> el gasto apunta a la tarjeta hallada
         const { data: gasto, error: gastoError } = await gastosService.insertAsync({
             nombre: movimiento.descripcion,
             tipo,
@@ -134,12 +135,10 @@ export default {
             cuotasPagadas: movimiento.cuota_actual ?? 0,
             montoARS: movimiento.monto_ars,
             fechaInicio: movimiento.fecha,
+            tarjetaId: tarjeta.id,
         });
 
         if (gastoError) return { data: null, error: gastoError };
-
-        // La relación vive en tarjetas.gasto_id -> vinculamos la tarjeta hallada a este gasto
-        await supabase.from("tarjetas").update({ gasto_id: gasto.id }).eq("id", tarjeta.id);
 
         const { error: movError } = await supabase
             .from("movimientos_importados")
