@@ -36,6 +36,29 @@ export default {
             .select("*")
             .single();
     },
+    // Cotización vigente: la del mes actual; si no hay, la del período más reciente; si no, 1
+    getCotizacionActualAsync: async (): Promise<number> => {
+        const hoy = new Date();
+        const anio = hoy.getUTCFullYear();
+        const mes = hoy.getUTCMonth() + 1;
+
+        const actual = await supabase
+            .from("periodos_mensuales")
+            .select("tipo_cambio")
+            .eq("anio", anio)
+            .eq("mes", mes)
+            .maybeSingle();
+        if (actual.data?.tipo_cambio) return actual.data.tipo_cambio;
+
+        const ultimo = await supabase
+            .from("periodos_mensuales")
+            .select("tipo_cambio")
+            .order("anio", { ascending: false })
+            .order("mes", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        return ultimo.data?.tipo_cambio ?? 1;
+    },
     calcularVOs: (periodo: any) => {
         return {
             id: periodo.id,

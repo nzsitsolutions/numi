@@ -6,6 +6,7 @@ import { createGastoSchema, updateGastoSchema } from '../validators/gastos.valid
 const router = Router();
 
 router.get('/', gastosController.getList);
+router.get('/agrupado', gastosController.getAgrupado);
 router.get('/:id', gastosController.getById);
 router.post('/', validateBody(createGastoSchema), gastosController.create);
 router.patch('/:id', validateBody(updateGastoSchema), gastosController.update);

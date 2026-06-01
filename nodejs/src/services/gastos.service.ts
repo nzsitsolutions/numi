@@ -1,6 +1,50 @@
 import supabase from "../config/supabase.js";
 import { CreateGastoDto, UpdateGastoDto } from "../types/api.types.js";
-import { GastoConCalculo } from "../types/database.types.js";
+import { GastoConCalculo, GrupoTarjeta } from "../types/database.types.js";
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+// Calcula los VOs de un gasto en ARS (con la parte USD convertida por tipoCambio).
+const calcularVOs = (gasto: any, tipoCambio: number = 1): GastoConCalculo => {
+    const esFijo = String(gasto.tipo).toLowerCase() === "fijo";
+    const cuotasTotal = gasto.cuotas_total ?? 0;
+    const cuotasPagadas = gasto.cuotas_pagadas ?? 0;
+
+    // Monto unitario (una cuota / mes) en ARS, con la parte USD ya convertida
+    const montoUnitARS = (gasto.monto_ars ?? 0) + (gasto.monto_usd ?? 0) * tipoCambio;
+
+    const cuotasRestantes = esFijo ? 1 : cuotasTotal - cuotasPagadas;
+
+    const totalAPagar = esFijo ? montoUnitARS : montoUnitARS * cuotasTotal;
+    const montoPagado = esFijo ? 0 : montoUnitARS * cuotasPagadas;
+    const montoTotalRestante = esFijo ? montoUnitARS : montoUnitARS * Math.max(cuotasRestantes, 0);
+
+    // Lo que efectivamente paga este mes (0 si ya terminó de pagar las cuotas)
+    const montoMensualARS = esFijo ? montoUnitARS : cuotasRestantes > 0 ? montoUnitARS : 0;
+
+    const avancePorcentaje = cuotasTotal > 0
+        ? (cuotasPagadas / cuotasTotal) * 100
+        : cuotasPagadas > 0 ? 100 : 0;
+
+    return {
+        id: gasto.id,
+        nombre: gasto.nombre,
+        tipo: gasto.tipo,
+        cuotasTotal: gasto.cuotas_total,
+        cuotasPagadas,
+        montoARS: gasto.monto_ars,
+        montoUSD: gasto.monto_usd,
+        tarjetaId: gasto.tarjeta_id,
+        fechaInicio: gasto.fecha_inicio,
+        activo: gasto.activo,
+        cuotasRestantes,
+        montoMensualARS: r2(montoMensualARS),
+        montoPagado: r2(montoPagado),
+        montoTotalRestante: r2(montoTotalRestante),
+        totalAPagar: r2(totalAPagar),
+        avancePorcentaje: r2(avancePorcentaje),
+    };
+};
 
 export default {
     getListAsync: () => {
@@ -12,6 +56,45 @@ export default {
     },
     firstOrDefaultAsync: (id: string) => {
         return supabase.from("gastos").select("*").eq("id", id);
+    },
+    // Trae gastos activos + tarjetas, para agrupar por origen/tarjeta
+    getAgrupadoSourceAsync: async () => {
+        const [gastos, tarjetas] = await Promise.all([
+            supabase.from("gastos").select("*").eq("activo", true).order("nombre"),
+            supabase.from("tarjetas").select("id, nombre"),
+        ]);
+        return { gastos, tarjetas };
+    },
+    // Arma los grupos (una entrada por tarjeta + una "Sin tarjeta")
+    agrupar: (gastos: any[], tarjetas: any[], tipoCambio: number): GrupoTarjeta[] => {
+        const nombrePorId = new Map<string, string>(tarjetas.map((t) => [t.id, t.nombre]));
+
+        const grupos = new Map<string, GrupoTarjeta>();
+        const keyFor = (id: string | null) => id ?? "__sin__";
+
+        for (const g of gastos) {
+            const vo = calcularVOs(g, tipoCambio);
+            const k = keyFor(vo.tarjetaId);
+            if (!grupos.has(k)) {
+                grupos.set(k, {
+                    tarjetaId: vo.tarjetaId,
+                    tarjetaNombre: vo.tarjetaId ? (nombrePorId.get(vo.tarjetaId) ?? "Tarjeta") : "Sin tarjeta",
+                    gastos: [],
+                    totalMensualARS: 0,
+                    cierreARS: 0,
+                });
+            }
+            const grupo = grupos.get(k)!;
+            grupo.gastos.push(vo);
+            grupo.totalMensualARS += vo.montoMensualARS;
+            grupo.cierreARS += vo.montoTotalRestante;
+        }
+
+        return [...grupos.values()].map((grp) => ({
+            ...grp,
+            totalMensualARS: r2(grp.totalMensualARS),
+            cierreARS: r2(grp.cierreARS),
+        }));
     },
     insertAsync: (dto: CreateGastoDto) => {
         return supabase
@@ -70,40 +153,6 @@ export default {
             .select()
             .single();
     },
-    calcularVOs: (gasto: any): GastoConCalculo => {
-        const esFijo = String(gasto.tipo).toLowerCase() === "fijo";
-
-        const cuotasRestantes = esFijo
-            ? 1
-            : (gasto.cuotas_total ?? 0) - gasto.cuotas_pagadas;
-
-        const montoTotalRestante = esFijo
-            ? gasto.monto_ars
-            : gasto.monto_ars * cuotasRestantes;
-
-        const totalAPagar = esFijo
-            ? gasto.monto_ars
-            : gasto.monto_ars * (gasto.cuotas_total ?? 0);
-
-        const avancePorcentaje = gasto.cuotas_total && gasto.cuotas_total > 0
-            ? (gasto.cuotas_pagadas / gasto.cuotas_total) * 100
-            : gasto.cuotas_pagadas > 0 ? 100 : 0;
-
-        return {
-            id: gasto.id,
-            nombre: gasto.nombre,
-            tipo: gasto.tipo,
-            cuotasTotal: gasto.cuotas_total,
-            cuotasPagadas: gasto.cuotas_pagadas,
-            montoARS: gasto.monto_ars,
-            montoUSD: gasto.monto_usd,
-            tarjetaId: gasto.tarjeta_id,
-            fechaInicio: gasto.fecha_inicio,
-            activo: gasto.activo,
-            cuotasRestantes,
-            montoTotalRestante,
-            totalAPagar,
-            avancePorcentaje: Math.round(avancePorcentaje * 100) / 100,
-        };
-    },
+    // tipoCambio: cotización del USD para convertir la parte en dólares a ARS
+    calcularVOs: (gasto: any, tipoCambio: number = 1): GastoConCalculo => calcularVOs(gasto, tipoCambio),
 };

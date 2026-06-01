@@ -1,5 +1,8 @@
 import supabase from "../config/supabase.js";
+import gastosService from "./gastos.service.js";
 import { ResumenMensual } from "../types/database.types.js";
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export default {
     getResumenMensualAsync: async (
@@ -24,68 +27,71 @@ export default {
 
         const tipoCambio = periodoMensual.data?.tipo_cambio ?? 1;
 
-        const gastosData = gastos.data ?? [];
-        const ingresosData = ingresos.data ?? [];
         const tarjetasData = tarjetas.data ?? [];
+        const ingresosData = ingresos.data ?? [];
         const deudasData = deudas.data ?? [];
 
-        // La relación es gastos.tarjeta_id → sin tarjeta = tarjeta_id NULL
-        const tieneTarjeta = (g: any): boolean => g.tarjeta_id != null;
+        // Cada gasto con sus VOs ya en ARS (USD convertido por la cotización del período)
+        const vos = (gastos.data ?? []).map((g) => gastosService.calcularVOs(g, tipoCambio));
 
-        // Cuota mensual de cada gasto — lo que efectivamente paga este mes
-        const cuotaMensual = (g: any): number => {
-            if (String(g.tipo).toLowerCase() === "fijo") return g.monto_ars + g.monto_usd * tipoCambio;
-            const restantes = (g.cuotas_total ?? 0) - g.cuotas_pagadas;
-            if (restantes <= 0) return 0;
-            return g.monto_ars;
-        };
+        const conTarjeta = vos.filter((v) => v.tarjetaId != null);
+        const sinTarjeta = vos.filter((v) => v.tarjetaId == null);
 
-        const gastosConTarjeta = gastosData.filter((g) => tieneTarjeta(g));
-        const gastosSinTarjeta = gastosData.filter((g) => !tieneTarjeta(g));
+        const tarjetasMensualARS = conTarjeta.reduce((s, v) => s + v.montoMensualARS, 0);
+        const noTarjetasMensualARS = sinTarjeta.reduce((s, v) => s + v.montoMensualARS, 0);
 
-        const tarjetasMensualARS = gastosConTarjeta.reduce((s, g) => s + cuotaMensual(g), 0);
-        const noTarjetasMensualARS = gastosSinTarjeta.reduce((s, g) => s + cuotaMensual(g), 0);
+        // Desglose del mes: parte pura en ARS y parte pura en USD (solo de lo que se paga este mes)
+        const pagaEsteMes = (v: typeof vos[number]) => v.montoMensualARS > 0;
+        const totalMensualARS = vos.reduce((s, v) => s + (pagaEsteMes(v) ? (v.montoARS ?? 0) : 0), 0);
+        const totalMensualUSD = vos.reduce((s, v) => s + (pagaEsteMes(v) ? (v.montoUSD ?? 0) : 0), 0);
 
-        // Gastos puramente en USD (monto_usd > 0 y monto_ars = 0)
-        const totalMensualUSD = gastosData
-            .filter((g) => g.monto_usd > 0 && g.monto_ars === 0)
-            .reduce((s, g) => s + g.monto_usd, 0);
+        // sinDeudas = suma mensual de los gastos fijos (en ARS, USD convertido)
+        const sinDeudasARS = vos
+            .filter((v) => v.tipo === "fijo")
+            .reduce((s, v) => s + v.montoMensualARS, 0);
 
-        const totalMensualARS = gastosData
-            .filter((g) => g.monto_ars > 0)
-            .reduce((s, g) => s + cuotaMensual(g), 0);
+        // cierre total = Σ de todo lo que falta pagar (payoff completo)
+        const cierreTotalARS = vos.reduce((s, v) => s + v.montoTotalRestante, 0);
 
         const totalIngresosARS = ingresosData.reduce((s, i) => s + i.monto_ars, 0);
         const totalIngresosUSD = ingresosData.reduce((s, i) => s + (i.monto_usd ?? 0), 0);
 
         const resumen: ResumenMensual = {
             valorUSD: tipoCambio,
-            totalMensualARS,
-            totalMensualUSD,
-            totalMesARS: totalMensualARS + totalMensualUSD * tipoCambio,
-            sinDeudasARS: noTarjetasMensualARS,
-            cierreTotalARS: tarjetasMensualARS + noTarjetasMensualARS,
-            tarjetasMensualARS,
-            noTarjetasMensualARS,
-            totalIngresosARS,
-            totalIngresosUSD,
+            totalMensualARS: r2(totalMensualARS),
+            totalMensualUSD: r2(totalMensualUSD),
+            totalMesARS: r2(tarjetasMensualARS + noTarjetasMensualARS),
+            sinDeudasARS: r2(sinDeudasARS),
+            cierreTotalARS: r2(cierreTotalARS),
+            tarjetasMensualARS: r2(tarjetasMensualARS),
+            noTarjetasMensualARS: r2(noTarjetasMensualARS),
+            totalIngresosARS: r2(totalIngresosARS),
+            totalIngresosUSD: r2(totalIngresosUSD),
             tarjetas: tarjetasData.map((t) => {
-                // usadoUSD: suma de todos los gastos de esta tarjeta (USD directo o ARS convertido)
-                const usadoUSD = gastosData
-                    .filter((g) => g.tarjeta_id === t.id)
-                    .reduce((s, g) => s + (g.monto_usd > 0 ? g.monto_usd : g.monto_ars / tipoCambio), 0);
+                const gastosDeTarjeta = vos.filter((v) => v.tarjetaId === t.id);
+                // usadoUSD: lo restante de la tarjeta expresado en USD
+                const usadoUSD = gastosDeTarjeta.reduce(
+                    (s, v) => s + (tipoCambio ? v.montoTotalRestante / tipoCambio : 0),
+                    0,
+                );
+                const limiteUSD = t.limite_usd ?? 0;
+                const cierreARS = gastosDeTarjeta.reduce((s, v) => s + v.montoTotalRestante, 0);
                 return {
                     id: t.id,
                     nombre: t.nombre,
-                    limiteUSD: t.limite_usd,
-                    usadoUSD,
+                    limiteUSD,
+                    usadoUSD: r2(usadoUSD),
+                    disponibleUSD: r2(limiteUSD - usadoUSD),
+                    cierreARS: r2(cierreARS),
                     fechaCierre: t.fecha_cierre,
+                    fechaVencimiento: t.fecha_vencimiento,
                 };
             }),
             deudasExtras: deudasData.map((d) => ({
                 descripcion: d.descripcion,
                 monto: d.monto,
                 moneda: d.moneda,
+                montoARS: r2(d.moneda === "USD" ? d.monto * tipoCambio : d.monto),
             })),
         };
 

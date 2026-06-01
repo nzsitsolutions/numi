@@ -1,4 +1,5 @@
 import gastosService from "../services/gastos.service.js";
+import periodosService from "../services/periodos.service.js";
 import { single, list } from "../utils/response.js";
 
 export default {
@@ -7,7 +8,19 @@ export default {
 
         if (error) return res.status(500).json(error);
 
-        res.status(200).json(list((data ?? []).map((g: any) => gastosService.calcularVOs(g))));
+        const tipoCambio = await periodosService.getCotizacionActualAsync();
+        res.status(200).json(list((data ?? []).map((g: any) => gastosService.calcularVOs(g, tipoCambio))));
+    },
+    // Gastos agrupados por tarjeta / "Sin tarjeta", con total mensual y cierre por grupo
+    getAgrupado: async (_req: any, res: any) => {
+        const { gastos, tarjetas } = await gastosService.getAgrupadoSourceAsync();
+
+        if (gastos.error) return res.status(500).json(gastos.error);
+        if (tarjetas.error) return res.status(500).json(tarjetas.error);
+
+        const tipoCambio = await periodosService.getCotizacionActualAsync();
+        const grupos = gastosService.agrupar(gastos.data ?? [], tarjetas.data ?? [], tipoCambio);
+        res.status(200).json(single({ grupos, valorUSD: tipoCambio }));
     },
     getById: async (req: any, res: any) => {
         const { data, error } = await gastosService.firstOrDefaultAsync(req.params.id);
@@ -15,14 +28,16 @@ export default {
         if (error) return res.status(500).json(error);
         if (!data || data.length === 0) return res.status(404).json({ message: "gasto no encontrado" });
 
-        res.status(200).json(single(gastosService.calcularVOs(data[0])));
+        const tipoCambio = await periodosService.getCotizacionActualAsync();
+        res.status(200).json(single(gastosService.calcularVOs(data[0], tipoCambio)));
     },
     create: async (req: any, res: any) => {
         const { data, error } = await gastosService.insertAsync(req.body);
 
         if (error) return res.status(500).json(error);
 
-        res.status(201).json(single(gastosService.calcularVOs(data)));
+        const tipoCambio = await periodosService.getCotizacionActualAsync();
+        res.status(201).json(single(gastosService.calcularVOs(data, tipoCambio)));
     },
     delete: async (req: any, res: any) => {
         const { error } = await gastosService.deleteAsync(req.params.id);
@@ -36,7 +51,8 @@ export default {
 
         if (error) return res.status(500).json(error);
 
-        res.status(200).json(single(gastosService.calcularVOs(data)));
+        const tipoCambio = await periodosService.getCotizacionActualAsync();
+        res.status(200).json(single(gastosService.calcularVOs(data, tipoCambio)));
     },
     pagarCuota: async (req: any, res: any) => {
         const { data, error } = await gastosService.firstOrDefaultAsync(req.params.id);
@@ -48,6 +64,7 @@ export default {
 
         if (paymentError) return res.status(400).json(paymentError);
 
-        res.status(200).json(single(gastosService.calcularVOs(updated)));
+        const tipoCambio = await periodosService.getCotizacionActualAsync();
+        res.status(200).json(single(gastosService.calcularVOs(updated, tipoCambio)));
     },
 };
