@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useNumi } from '@/lib/numi-context'
 import { formatArs, formatUsd } from '@/lib/format'
 import { Debt } from '@/lib/types'
@@ -40,7 +41,8 @@ import {
   Trash2,
   CheckCircle2,
   Landmark,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react'
 
 interface DebtFormData {
@@ -73,6 +75,9 @@ export function DeudasPage() {
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null)
   const [formData, setFormData] = useState<DebtFormData>(initialFormData)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [payingId, setPayingId] = useState<string | null>(null)
 
   const activeDebts = debts.filter(d => d.status === 'activa')
   const paidDebts = debts.filter(d => d.status === 'saldada')
@@ -99,9 +104,10 @@ export function DeudasPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setIsSaving(true)
+
     const debtData: Omit<Debt, 'id'> = {
       description: formData.description,
       amount: parseFloat(formData.amount),
@@ -110,30 +116,55 @@ export function DeudasPage() {
       notes: formData.notes || undefined
     }
 
-    if (editingDebt) {
-      updateDebt(editingDebt.id, debtData)
-    } else {
-      addDebt(debtData)
+    try {
+      if (editingDebt) {
+        await updateDebt(editingDebt.id, debtData)
+      } else {
+        await addDebt(debtData)
+      }
+      setIsDialogOpen(false)
+      setFormData(initialFormData)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar la deuda')
+    } finally {
+      setIsSaving(false)
     }
-
-    setIsDialogOpen(false)
-    setFormData(initialFormData)
   }
 
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteDebt(deleteId)
+  const handleDelete = async () => {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      await deleteDebt(deleteId)
       setDeleteId(null)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar la deuda')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleMarkAsPaid = async (id: string) => {
+    setPayingId(id)
+    try {
+      await markDebtAsPaid(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo marcar como saldada')
+    } finally {
+      setPayingId(null)
     }
   }
 
   const DebtCard = ({ debt }: { debt: Debt }) => (
-    <Card className={`bg-card border-border ${debt.status === 'saldada' ? 'opacity-60' : ''}`}>
+    <Card className={`bg-card border-border overflow-hidden transition-opacity ${debt.status === 'saldada' ? 'opacity-55' : ''}`}>
+      <div className={`h-0.5 ${debt.status === 'activa' ? 'bg-destructive/60' : 'bg-border'}`} />
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-foreground">{debt.description}</span>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className={`font-medium ${debt.status === 'saldada' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                {debt.description}
+              </span>
               <Badge 
                 variant={debt.status === 'activa' ? 'destructive' : 'secondary'}
                 className="text-xs"
@@ -146,8 +177,8 @@ export function DeudasPage() {
             )}
           </div>
 
-          <div className="text-right">
-            <div className="font-semibold text-foreground tabular-nums">
+          <div className="text-right flex-shrink-0">
+            <div className={`font-semibold tabular-nums ${debt.status === 'activa' ? 'text-foreground' : 'text-muted-foreground'}`}>
               {debt.currency === 'USD' 
                 ? formatUsd(debt.amount)
                 : formatArs(debt.amount)
@@ -167,9 +198,13 @@ export function DeudasPage() {
               variant="outline"
               size="sm"
               className="gap-1 text-success border-success/30 hover:bg-success/10 hover:text-success"
-              onClick={() => markDebtAsPaid(debt.id)}
+              disabled={payingId === debt.id}
+              onClick={() => handleMarkAsPaid(debt.id)}
             >
-              <CheckCircle2 className="h-4 w-4" />
+              {payingId === debt.id
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <CheckCircle2 className="h-4 w-4" />
+              }
               Marcar saldada
             </Button>
           )}
@@ -198,13 +233,19 @@ export function DeudasPage() {
   return (
     <div className="p-4 lg:p-8 space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-semibold text-foreground">Deudas</h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Deudas extra fuera de tarjetas
           </p>
         </div>
+        {totalActiveArs > 0 && (
+          <div className="hidden sm:flex flex-col items-end">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">Total activo</span>
+            <span className="text-lg font-bold text-destructive tabular-nums">{formatArs(totalActiveArs)}</span>
+          </div>
+        )}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNewDebt} className="gap-2">
@@ -289,10 +330,11 @@ export function DeudasPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
+                <Button type="button" variant="outline" className="flex-1" disabled={isSaving} onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
+                <Button type="submit" className="flex-1" disabled={isSaving}>
+                  {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingDebt ? 'Guardar' : 'Agregar'}
                 </Button>
               </div>
@@ -378,8 +420,9 @@ export function DeudasPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

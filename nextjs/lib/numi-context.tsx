@@ -1,14 +1,14 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useCallback } from 'react'
-import { 
+import {
+  createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef
+} from 'react'
+import { toast } from 'sonner'
+import {
   CreditCard, Expense, Income, Debt, PendingMovement, Period,
-  ExpenseWithCalculations, CardSummary 
+  ExpenseWithCalculations, CardSummary
 } from '@/lib/types'
-import { 
-  sampleCards, sampleExpenses, sampleIncomes, sampleDebts, 
-  samplePendingMovements, currentPeriod 
-} from '@/lib/sample-data'
+import * as api from '@/lib/api'
 
 interface NumiContextType {
   // State
@@ -18,39 +18,41 @@ interface NumiContextType {
   incomes: Income[]
   debts: Debt[]
   pendingMovements: PendingMovement[]
-  
+  isLoading: boolean
+
   // Period actions
   setPeriod: (period: Period) => void
   updateExchangeRate: (rate: number) => void
   nextPeriod: () => void
   prevPeriod: () => void
-  
+
   // Card actions
-  addCard: (card: Omit<CreditCard, 'id'>) => void
-  updateCard: (id: string, card: Partial<CreditCard>) => void
-  deleteCard: (id: string) => void
-  
+  addCard: (card: Omit<CreditCard, 'id'>) => Promise<void>
+  updateCard: (id: string, card: Partial<CreditCard>) => Promise<void>
+  deleteCard: (id: string) => Promise<void>
+
   // Expense actions
-  addExpense: (expense: Omit<Expense, 'id'>) => void
-  updateExpense: (id: string, expense: Partial<Expense>) => void
-  deleteExpense: (id: string) => void
-  payInstallment: (id: string) => void
-  
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>
+  updateExpense: (id: string, expense: Partial<Expense>) => Promise<void>
+  deleteExpense: (id: string) => Promise<void>
+  payInstallment: (id: string) => Promise<void>
+
   // Income actions
-  addIncome: (income: Omit<Income, 'id'>) => void
-  updateIncome: (id: string, income: Partial<Income>) => void
-  deleteIncome: (id: string) => void
-  
+  addIncome: (income: Omit<Income, 'id'>) => Promise<void>
+  updateIncome: (id: string, income: Partial<Income>) => Promise<void>
+  deleteIncome: (id: string) => Promise<void>
+
   // Debt actions
-  addDebt: (debt: Omit<Debt, 'id'>) => void
-  updateDebt: (id: string, debt: Partial<Debt>) => void
-  deleteDebt: (id: string) => void
-  markDebtAsPaid: (id: string) => void
-  
+  addDebt: (debt: Omit<Debt, 'id'>) => Promise<void>
+  updateDebt: (id: string, debt: Partial<Debt>) => Promise<void>
+  deleteDebt: (id: string) => Promise<void>
+  markDebtAsPaid: (id: string) => Promise<void>
+
   // Movement actions
-  confirmMovement: (id: string) => void
-  discardMovement: (id: string) => void
-  
+  confirmMovement: (id: string) => Promise<void>
+  discardMovement: (id: string) => Promise<void>
+  refreshMovements: () => Promise<void>
+
   // Calculated values
   getExpenseCalculations: (expense: Expense) => ExpenseWithCalculations
   getCardSummaries: () => CardSummary[]
@@ -63,25 +65,92 @@ interface NumiContextType {
 
 const NumiContext = createContext<NumiContextType | null>(null)
 
-function generateId(): string {
-  return Math.random().toString(36).substr(2, 9)
+function currentMonthYear() {
+  const now = new Date()
+  return { month: now.getMonth() + 1, year: now.getFullYear() }
 }
 
 export function NumiProvider({ children }: { children: ReactNode }) {
-  const [period, setPeriod] = useState<Period>(currentPeriod)
-  const [cards, setCards] = useState<CreditCard[]>(sampleCards)
-  const [expenses, setExpenses] = useState<Expense[]>(sampleExpenses)
-  const [incomes, setIncomes] = useState<Income[]>(sampleIncomes)
-  const [debts, setDebts] = useState<Debt[]>(sampleDebts)
-  const [pendingMovements, setPendingMovements] = useState<PendingMovement[]>(samplePendingMovements)
+  const { month, year } = currentMonthYear()
 
-  // Period actions
+  const [period, setPeriodState] = useState<Period>({ month, year, exchangeRate: 1420 })
+  const [cards, setCards] = useState<CreditCard[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [incomes, setIncomes] = useState<Income[]>([])
+  const [debts, setDebts] = useState<Debt[]>([])
+  const [pendingMovements, setPendingMovements] = useState<PendingMovement[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const isInitialized = useRef(false)
+
+  // ── Initial load ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      setIsLoading(true)
+      try {
+        const [fetchedCards, fetchedExpenses, fetchedDebts, fetchedMovements, fetchedIncomes] =
+          await Promise.all([
+            api.fetchCards(),
+            api.fetchExpenses(),
+            api.fetchDebts(),
+            api.fetchPendingMovements(),
+            api.fetchIncomes(),
+          ])
+
+        setCards(fetchedCards)
+        setExpenses(fetchedExpenses)
+        setDebts(fetchedDebts)
+        setPendingMovements(fetchedMovements)
+        setIncomes(fetchedIncomes)
+
+        // Fetch exchange rate for current period
+        const periodo = await api.fetchPeriodo(year, month)
+        if (periodo) {
+          setPeriodState(p => ({ ...p, exchangeRate: periodo.tipoCambio }))
+        }
+      } catch (err) {
+        console.error('[numi] init error:', err)
+        toast.error('No se pudo conectar al servidor')
+      } finally {
+        setIsLoading(false)
+        isInitialized.current = true
+      }
+    }
+    init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Refetch exchange rate when period month/year changes ────────────────────
+  const prevPeriodRef = useRef({ month, year })
+  useEffect(() => {
+    const prev = prevPeriodRef.current
+    if (!isInitialized.current) return
+    if (prev.month === period.month && prev.year === period.year) return
+    prevPeriodRef.current = { month: period.month, year: period.year }
+
+    const fetch = async () => {
+      const periodo = await api.fetchPeriodo(period.year, period.month)
+      if (periodo) {
+        setPeriodState(p => ({ ...p, exchangeRate: periodo.tipoCambio }))
+      }
+    }
+    fetch()
+  }, [period.month, period.year])
+
+  // ── Period actions ──────────────────────────────────────────────────────────
+  const setPeriod = useCallback((p: Period) => setPeriodState(p), [])
+
   const updateExchangeRate = useCallback((rate: number) => {
-    setPeriod(p => ({ ...p, exchangeRate: rate }))
+    setPeriodState(p => {
+      const next = { ...p, exchangeRate: rate }
+      api.createOrUpdatePeriodo(p.year, p.month, rate).catch(() => {
+        toast.error('No se pudo guardar la cotización')
+      })
+      return next
+    })
   }, [])
 
   const nextPeriod = useCallback(() => {
-    setPeriod(p => {
+    setPeriodState(p => {
       const newMonth = p.month === 12 ? 1 : p.month + 1
       const newYear = p.month === 12 ? p.year + 1 : p.year
       return { ...p, month: newMonth, year: newYear }
@@ -89,97 +158,111 @@ export function NumiProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const prevPeriod = useCallback(() => {
-    setPeriod(p => {
+    setPeriodState(p => {
       const newMonth = p.month === 1 ? 12 : p.month - 1
       const newYear = p.month === 1 ? p.year - 1 : p.year
       return { ...p, month: newMonth, year: newYear }
     })
   }, [])
 
-  // Card actions
-  const addCard = useCallback((card: Omit<CreditCard, 'id'>) => {
-    setCards(c => [...c, { ...card, id: generateId() }])
+  // ── Card actions ────────────────────────────────────────────────────────────
+  const addCard = useCallback(async (card: Omit<CreditCard, 'id'>) => {
+    const created = await api.createCard(card)
+    setCards(c => [...c, created])
   }, [])
 
-  const updateCard = useCallback((id: string, card: Partial<CreditCard>) => {
-    setCards(c => c.map(item => item.id === id ? { ...item, ...card } : item))
+  const updateCard = useCallback(async (id: string, card: Partial<CreditCard>) => {
+    const updated = await api.updateCard(id, card)
+    setCards(c => c.map(item => item.id === id ? updated : item))
   }, [])
 
-  const deleteCard = useCallback((id: string) => {
+  const deleteCard = useCallback(async (id: string) => {
+    await api.deleteCard(id)
     setCards(c => c.filter(item => item.id !== id))
   }, [])
 
-  // Expense actions
-  const addExpense = useCallback((expense: Omit<Expense, 'id'>) => {
-    setExpenses(e => [...e, { ...expense, id: generateId() }])
+  // ── Expense actions ─────────────────────────────────────────────────────────
+  const addExpense = useCallback(async (expense: Omit<Expense, 'id'>) => {
+    const created = await api.createExpense(expense)
+    setExpenses(e => [...e, created])
   }, [])
 
-  const updateExpense = useCallback((id: string, expense: Partial<Expense>) => {
-    setExpenses(e => e.map(item => item.id === id ? { ...item, ...expense } : item))
+  const updateExpense = useCallback(async (id: string, expense: Partial<Expense>) => {
+    const updated = await api.updateExpense(id, expense)
+    setExpenses(e => e.map(item => item.id === id ? updated : item))
   }, [])
 
-  const deleteExpense = useCallback((id: string) => {
+  const deleteExpense = useCallback(async (id: string) => {
+    await api.deleteExpense(id)
     setExpenses(e => e.filter(item => item.id !== id))
   }, [])
 
-  const payInstallment = useCallback((id: string) => {
-    setExpenses(e => e.map(item => {
-      if (item.id === id && item.type === 'cuotas' && item.paidInstallments !== undefined && item.totalInstallments !== undefined) {
-        if (item.paidInstallments < item.totalInstallments) {
-          return { ...item, paidInstallments: item.paidInstallments + 1 }
-        }
-      }
-      return item
-    }))
+  const payInstallment = useCallback(async (id: string) => {
+    const updated = await api.payInstallment(id)
+    setExpenses(e => e.map(item => item.id === id ? updated : item))
   }, [])
 
-  // Income actions
-  const addIncome = useCallback((income: Omit<Income, 'id'>) => {
-    setIncomes(i => [...i, { ...income, id: generateId() }])
-  }, [])
+  // ── Income actions ──────────────────────────────────────────────────────────
+  const addIncome = useCallback(async (income: Omit<Income, 'id'>) => {
+    const created = await api.createIncome(income, period.exchangeRate)
+    setIncomes(i => [...i, created])
+  }, [period.exchangeRate])
 
-  const updateIncome = useCallback((id: string, income: Partial<Income>) => {
-    setIncomes(i => i.map(item => item.id === id ? { ...item, ...income } : item))
-  }, [])
+  const updateIncome = useCallback(async (id: string, income: Partial<Income>) => {
+    const updated = await api.updateIncome(id, income, period.exchangeRate)
+    setIncomes(i => i.map(item => item.id === id ? updated : item))
+  }, [period.exchangeRate])
 
-  const deleteIncome = useCallback((id: string) => {
+  const deleteIncome = useCallback(async (id: string) => {
+    await api.deleteIncome(id)
     setIncomes(i => i.filter(item => item.id !== id))
   }, [])
 
-  // Debt actions
-  const addDebt = useCallback((debt: Omit<Debt, 'id'>) => {
-    setDebts(d => [...d, { ...debt, id: generateId() }])
+  // ── Debt actions ────────────────────────────────────────────────────────────
+  const addDebt = useCallback(async (debt: Omit<Debt, 'id'>) => {
+    const created = await api.createDebt(debt)
+    setDebts(d => [...d, created])
   }, [])
 
-  const updateDebt = useCallback((id: string, debt: Partial<Debt>) => {
-    setDebts(d => d.map(item => item.id === id ? { ...item, ...debt } : item))
+  const updateDebt = useCallback(async (id: string, debt: Partial<Debt>) => {
+    const updated = await api.updateDebt(id, debt)
+    setDebts(d => d.map(item => item.id === id ? updated : item))
   }, [])
 
-  const deleteDebt = useCallback((id: string) => {
+  const deleteDebt = useCallback(async (id: string) => {
+    await api.deleteDebt(id)
     setDebts(d => d.filter(item => item.id !== id))
   }, [])
 
-  const markDebtAsPaid = useCallback((id: string) => {
-    setDebts(d => d.map(item => item.id === id ? { ...item, status: 'saldada' as const } : item))
+  const markDebtAsPaid = useCallback(async (id: string) => {
+    const updated = await api.markDebtAsPaid(id)
+    setDebts(d => d.map(item => item.id === id ? updated : item))
   }, [])
 
-  // Movement actions
-  const confirmMovement = useCallback((id: string) => {
-    setPendingMovements(m => m.map(item => 
+  // ── Movement actions ────────────────────────────────────────────────────────
+  const confirmMovement = useCallback(async (id: string) => {
+    await api.confirmMovement(id)
+    setPendingMovements(m => m.map(item =>
       item.id === id ? { ...item, status: 'confirmed' as const } : item
     ))
   }, [])
 
-  const discardMovement = useCallback((id: string) => {
-    setPendingMovements(m => m.map(item => 
+  const discardMovement = useCallback(async (id: string) => {
+    await api.discardMovement(id)
+    setPendingMovements(m => m.map(item =>
       item.id === id ? { ...item, status: 'discarded' as const } : item
     ))
   }, [])
 
-  // Calculations
+  const refreshMovements = useCallback(async () => {
+    const movements = await api.fetchPendingMovements()
+    setPendingMovements(movements)
+  }, [])
+
+  // ── Calculations (client-side, mirrors backend calcularVOs) ─────────────────
   const getExpenseCalculations = useCallback((expense: Expense): ExpenseWithCalculations => {
     const rate = period.exchangeRate
-    
+
     let monthlyArs: number
     let totalArs: number
     let remainingInstallments: number
@@ -193,21 +276,22 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       totalArs = baseAmount
       remainingInstallments = 0
       paidArs = 0
-      remainingArs = 0
+      remainingArs = baseAmount
       progress = 100
     } else {
       const total = expense.totalInstallments || 1
       const paid = expense.paidInstallments || 0
-      remainingInstallments = total - paid
-      
-      const totalAmount = expense.amountUsd ? expense.amountUsd * rate : expense.amountArs
-      const installmentAmount = totalAmount / total
-      
-      monthlyArs = installmentAmount
-      totalArs = totalAmount
+      remainingInstallments = Math.max(total - paid, 0)
+
+      const installmentAmount = expense.amountUsd
+        ? expense.amountUsd * rate
+        : expense.amountArs
+
+      monthlyArs = remainingInstallments > 0 ? installmentAmount : 0
+      totalArs = installmentAmount * total
       paidArs = installmentAmount * paid
       remainingArs = installmentAmount * remainingInstallments
-      progress = Math.round((paid / total) * 100)
+      progress = total > 0 ? Math.round((paid / total) * 100) : 0
     }
 
     return {
@@ -217,7 +301,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       paidArs,
       remainingArs,
       totalArs,
-      progress
+      progress,
     }
   }, [period.exchangeRate])
 
@@ -226,7 +310,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       const cardExpenses = expenses
         .filter(e => e.cardId === card.id)
         .map(getExpenseCalculations)
-      
+
       const usedUsd = cardExpenses.reduce((sum, e) => {
         if (e.amountUsd) {
           return sum + (e.type === 'fijo' ? e.amountUsd : e.amountUsd / (e.totalInstallments || 1))
@@ -241,7 +325,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
         usedUsd,
         availableUsd: card.limitUsd - usedUsd,
         closureArs,
-        expenses: cardExpenses
+        expenses: cardExpenses,
       }
     })
   }, [cards, expenses, getExpenseCalculations, period.exchangeRate])
@@ -253,31 +337,29 @@ export function NumiProvider({ children }: { children: ReactNode }) {
   }, [expenses, getExpenseCalculations])
 
   const getTotalMonthly = useCallback((): number => {
-    const allExpenses = expenses.map(getExpenseCalculations)
-    return allExpenses.reduce((sum, e) => sum + e.monthlyArs, 0)
+    return expenses.map(getExpenseCalculations).reduce((sum, e) => sum + e.monthlyArs, 0)
   }, [expenses, getExpenseCalculations])
 
   const getTotalClosure = useCallback((): number => {
-    const allExpenses = expenses.map(getExpenseCalculations)
-    return allExpenses.reduce((sum, e) => sum + e.remainingArs, 0)
+    return expenses.map(getExpenseCalculations).reduce((sum, e) => sum + e.remainingArs, 0)
   }, [expenses, getExpenseCalculations])
 
   const getTotalIncome = useCallback((): { ars: number; usd: number } => {
     const rate = period.exchangeRate
+    const periodStr = `${period.year}-${String(period.month).padStart(2, '0')}`
     let totalArs = 0
     let totalUsd = 0
-
-    incomes.forEach(income => {
-      if (income.amountArs) totalArs += income.amountArs
-      if (income.amountUsd) totalUsd += income.amountUsd
-    })
-
+    incomes
+      .filter(income => income.period.startsWith(periodStr))
+      .forEach(income => {
+        if (income.amountArs) totalArs += income.amountArs
+        if (income.amountUsd) totalUsd += income.amountUsd
+      })
     return { ars: totalArs + totalUsd * rate, usd: totalUsd }
-  }, [incomes, period.exchangeRate])
+  }, [incomes, period])
 
   const getNoDebtTotal = useCallback((): number => {
-    const noCardExpenses = getNoCardExpenses()
-    return noCardExpenses.reduce((sum, e) => sum + e.monthlyArs, 0)
+    return getNoCardExpenses().reduce((sum, e) => sum + e.monthlyArs, 0)
   }, [getNoCardExpenses])
 
   return (
@@ -288,6 +370,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       incomes,
       debts,
       pendingMovements,
+      isLoading,
       setPeriod,
       updateExchangeRate,
       nextPeriod,
@@ -308,6 +391,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       markDebtAsPaid,
       confirmMovement,
       discardMovement,
+      refreshMovements,
       getExpenseCalculations,
       getCardSummaries,
       getNoCardExpenses,

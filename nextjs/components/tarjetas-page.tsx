@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useNumi } from '@/lib/numi-context'
 import { formatUsd } from '@/lib/format'
 import { CreditCard as CreditCardType } from '@/lib/types'
@@ -36,7 +37,8 @@ import {
   Pencil, 
   Trash2,
   CreditCard,
-  Wifi
+  Wifi,
+  Loader2
 } from 'lucide-react'
 
 const colorOptions = [
@@ -73,6 +75,8 @@ export function TarjetasPage() {
   const [editingCard, setEditingCard] = useState<CreditCardType | null>(null)
   const [formData, setFormData] = useState<CardFormData>(initialFormData)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const openNewCard = () => {
     setEditingCard(null)
@@ -92,9 +96,10 @@ export function TarjetasPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setIsSaving(true)
+
     const cardData: Omit<CreditCardType, 'id'> = {
       name: formData.name,
       limitUsd: parseFloat(formData.limitUsd),
@@ -103,20 +108,31 @@ export function TarjetasPage() {
       color: formData.color
     }
 
-    if (editingCard) {
-      updateCard(editingCard.id, cardData)
-    } else {
-      addCard(cardData)
+    try {
+      if (editingCard) {
+        await updateCard(editingCard.id, cardData)
+      } else {
+        await addCard(cardData)
+      }
+      setIsDialogOpen(false)
+      setFormData(initialFormData)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar la tarjeta')
+    } finally {
+      setIsSaving(false)
     }
-
-    setIsDialogOpen(false)
-    setFormData(initialFormData)
   }
 
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteCard(deleteId)
+  const handleDelete = async () => {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      await deleteCard(deleteId)
       setDeleteId(null)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar la tarjeta')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -221,10 +237,11 @@ export function TarjetasPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
+                <Button type="button" variant="outline" className="flex-1" disabled={isSaving} onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
+                <Button type="submit" className="flex-1" disabled={isSaving}>
+                  {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingCard ? 'Guardar' : 'Agregar'}
                 </Button>
               </div>
@@ -329,8 +346,9 @@ export function TarjetasPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

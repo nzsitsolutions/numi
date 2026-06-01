@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useNumi } from '@/lib/numi-context'
 import { formatArs, formatUsd, getMonthName } from '@/lib/format'
 import { Income } from '@/lib/types'
@@ -39,7 +40,8 @@ import {
   Trash2, 
   TrendingUp,
   DollarSign,
-  Banknote
+  Banknote,
+  Loader2
 } from 'lucide-react'
 
 interface IncomeFormData {
@@ -74,6 +76,8 @@ export function IngresosPage() {
   const [editingIncome, setEditingIncome] = useState<Income | null>(null)
   const [formData, setFormData] = useState<IncomeFormData>(initialFormData)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const totalIncome = getTotalIncome()
   const totalUsdConverted = incomes
@@ -105,9 +109,10 @@ export function IngresosPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setIsSaving(true)
+
     const incomeData: Omit<Income, 'id'> = {
       description: formData.description,
       amountArs: formData.amountArs ? parseFloat(formData.amountArs) : undefined,
@@ -117,30 +122,41 @@ export function IngresosPage() {
       exchangeRate: parseFloat(formData.exchangeRate) || period.exchangeRate
     }
 
-    if (editingIncome) {
-      updateIncome(editingIncome.id, incomeData)
-    } else {
-      addIncome(incomeData)
+    try {
+      if (editingIncome) {
+        await updateIncome(editingIncome.id, incomeData)
+      } else {
+        await addIncome(incomeData)
+      }
+      setIsDialogOpen(false)
+      setFormData(initialFormData)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar el ingreso')
+    } finally {
+      setIsSaving(false)
     }
-
-    setIsDialogOpen(false)
-    setFormData(initialFormData)
   }
 
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteIncome(deleteId)
+  const handleDelete = async () => {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      await deleteIncome(deleteId)
       setDeleteId(null)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el ingreso')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
   return (
     <div className="p-4 lg:p-8 space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-semibold text-foreground">Ingresos</h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             {getMonthName(period.month)} {period.year}
           </p>
         </div>
@@ -242,10 +258,11 @@ export function IngresosPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
+                <Button type="button" variant="outline" className="flex-1" disabled={isSaving} onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
+                <Button type="submit" className="flex-1" disabled={isSaving}>
+                  {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingIncome ? 'Guardar' : 'Agregar'}
                 </Button>
               </div>
@@ -255,49 +272,54 @@ export function IngresosPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-success uppercase tracking-wide flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" />
-              Total del mes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold tabular-nums text-success">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4">
+        <Card className="bg-card border-border overflow-hidden">
+          <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 to-emerald-500/20" />
+          <CardContent className="p-4 lg:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total del mes</span>
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+            <div className="text-xl lg:text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
               {formatArs(totalIncome.ars)}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Este período</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <DollarSign className="h-3 w-3" />
-              En dólares
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold tabular-nums text-foreground">
+        <Card className="bg-card border-border overflow-hidden">
+          <div className="h-0.5 bg-gradient-to-r from-blue-500/60 to-blue-500/20" />
+          <CardContent className="p-4 lg:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">En dólares</span>
+              <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <DollarSign className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div className="text-xl lg:text-2xl font-bold tabular-nums text-foreground">
               {formatUsd(totalUsdConverted)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1 tabular-nums">
               ≈ {formatArs(totalUsdConverted * period.exchangeRate)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Banknote className="h-3 w-3" />
-              En pesos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl lg:text-3xl font-bold tabular-nums text-foreground">
+        <Card className="bg-card border-border overflow-hidden">
+          <div className="h-0.5 bg-gradient-to-r from-primary/60 to-primary/20" />
+          <CardContent className="p-4 lg:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">En pesos</span>
+              <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Banknote className="h-3.5 w-3.5 text-primary" />
+              </div>
+            </div>
+            <div className="text-xl lg:text-2xl font-bold tabular-nums text-foreground">
               {formatArs(totalArsOnly)}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Solo ARS</p>
           </CardContent>
         </Card>
       </div>
@@ -394,8 +416,9 @@ export function IngresosPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

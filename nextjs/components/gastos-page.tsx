@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useNumi } from '@/lib/numi-context'
 import { formatArs, formatUsd } from '@/lib/format'
 import { Expense, ExpenseWithCalculations } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import {
   Dialog,
   DialogContent,
@@ -41,7 +41,8 @@ import {
   CreditCard, 
   Wallet,
   CircleDollarSign,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react'
 
 interface ExpenseFormData {
@@ -84,6 +85,8 @@ export function GastosPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [formData, setFormData] = useState<ExpenseFormData>(initialFormData)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const cardSummaries = getCardSummaries()
   const noCardExpenses = getNoCardExpenses()
@@ -109,9 +112,10 @@ export function GastosPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setIsSaving(true)
+
     const expenseData: Omit<Expense, 'id'> = {
       name: formData.name,
       type: formData.type,
@@ -123,20 +127,31 @@ export function GastosPage() {
       startDate: formData.startDate
     }
 
-    if (editingExpense) {
-      updateExpense(editingExpense.id, expenseData)
-    } else {
-      addExpense(expenseData)
+    try {
+      if (editingExpense) {
+        await updateExpense(editingExpense.id, expenseData)
+      } else {
+        await addExpense(expenseData)
+      }
+      setIsDialogOpen(false)
+      setFormData(initialFormData)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar el gasto')
+    } finally {
+      setIsSaving(false)
     }
-
-    setIsDialogOpen(false)
-    setFormData(initialFormData)
   }
 
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteExpense(deleteId)
+  const handleDelete = async () => {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      await deleteExpense(deleteId)
       setDeleteId(null)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el gasto')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -162,11 +177,22 @@ export function GastosPage() {
             <span className="text-xs text-muted-foreground tabular-nums">
               {expense.paidInstallments}/{expense.totalInstallments}
             </span>
-            <span className="text-xs text-primary font-medium tabular-nums">
+            <span className={`text-xs font-medium tabular-nums ${
+              expense.progress! >= 80 ? 'text-emerald-600 dark:text-emerald-400' :
+              expense.progress! >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-primary'
+            }`}>
               {expense.progress}%
             </span>
           </div>
-          <Progress value={expense.progress} className="h-1 w-20" />
+          <div className="h-1 w-20 bg-secondary rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${
+                expense.progress! >= 80 ? 'bg-emerald-500' :
+                expense.progress! >= 50 ? 'bg-amber-500' : 'bg-primary'
+              }`}
+              style={{ width: `${expense.progress}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -187,12 +213,15 @@ export function GastosPage() {
       )}
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {expense.type === 'cuotas' && expense.paidInstallments! < expense.totalInstallments! && (
+          {expense.type === 'cuotas' && expense.paidInstallments! < expense.totalInstallments! && (
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-success hover:text-success"
-            onClick={() => payInstallment(expense.id)}
+            onClick={async () => {
+              try { await payInstallment(expense.id) }
+              catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error al pagar cuota') }
+            }}
           >
             <Check className="h-4 w-4" />
           </Button>
@@ -354,10 +383,11 @@ export function GastosPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
+                <Button type="button" variant="outline" className="flex-1" disabled={isSaving} onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
+                <Button type="submit" className="flex-1" disabled={isSaving}>
+                  {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingExpense ? 'Guardar' : 'Agregar'}
                 </Button>
               </div>
@@ -445,8 +475,9 @@ export function GastosPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

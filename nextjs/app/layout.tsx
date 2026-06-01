@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
+import { NumiProvider } from '@/lib/numi-context'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const geistSans = Geist({ 
@@ -42,7 +44,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <NumiProvider>
+            {children}
+          </NumiProvider>
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>
