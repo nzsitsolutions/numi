@@ -44,7 +44,6 @@ export default {
     },
 
     syncDriveNaranjaX: async (_req: any, res: any) => {
-        console.log("drive sync...");
         try {
             const result = await importacionesService.syncDriveNaranjaXAsync();
             res.status(200).json(single(result));
@@ -53,7 +52,26 @@ export default {
         }
     },
 
-    syncMercadoPago: async (_req: any, res: any) => {
-        res.status(501).json({ message: "Sync de MercadoPago aún no implementado" });
+    // ── BBVA (CSV) ──
+    uploadBbva: async (req: any, res: any) => {
+        if (!req.file) return res.status(400).json({ message: "Falta el archivo (campo 'archivo')" });
+        try {
+            const result = await importacionesService.procesarBufferBbvaAsync(
+                req.file.buffer,
+                req.file.originalname,
+            );
+            res.status(200).json(single(result));
+        } catch (e: any) {
+            res.status(500).json({ message: e.message });
+        }
+    },
+
+    syncDriveBbva: async (_req: any, res: any) => {
+        try {
+            const result = await importacionesService.syncDriveBbvaAsync();
+            res.status(200).json(single(result));
+        } catch (e: any) {
+            res.status(500).json({ message: e.message });
+        }
     },
 };

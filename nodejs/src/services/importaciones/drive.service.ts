@@ -15,11 +15,15 @@ const getDrive = () => {
 };
 
 export default {
-    // Lista los PDF dentro de la carpeta principal (no recursivo)
-    listarPdfsAsync: async (folderId: string): Promise<{ id: string; name: string }[]> => {
+    // Lista archivos dentro de una carpeta (no recursivo).
+    // Con mimeType filtra por tipo (ej. 'application/pdf'); sin él, trae todo lo que no sea carpeta.
+    listarArchivosAsync: async (folderId: string, mimeType?: string): Promise<{ id: string; name: string }[]> => {
         const drive = getDrive();
+        const filtroTipo = mimeType
+            ? `mimeType = '${mimeType}'`
+            : `mimeType != 'application/vnd.google-apps.folder'`;
         const res = await drive.files.list({
-            q: `'${folderId}' in parents and mimeType = 'application/pdf' and trashed = false`,
+            q: `'${folderId}' in parents and ${filtroTipo} and trashed = false`,
             fields: "files(id, name)",
             pageSize: 1000,
             supportsAllDrives: true,
