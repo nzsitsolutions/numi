@@ -52,7 +52,6 @@ export default {
         }
     },
 
-    // ── BBVA (CSV) ──
     uploadBbva: async (req: any, res: any) => {
         if (!req.file) return res.status(400).json({ message: "Falta el archivo (campo 'archivo')" });
         try {

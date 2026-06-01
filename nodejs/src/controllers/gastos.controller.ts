@@ -11,7 +11,6 @@ export default {
         const tipoCambio = await periodosService.getCotizacionActualAsync();
         res.status(200).json(list((data ?? []).map((g: any) => gastosService.calcularVOs(g, tipoCambio))));
     },
-    // Gastos agrupados por tarjeta / "Sin tarjeta", con total mensual y cierre por grupo
     getAgrupado: async (_req: any, res: any) => {
         const { gastos, tarjetas } = await gastosService.getAgrupadoSourceAsync();
 
