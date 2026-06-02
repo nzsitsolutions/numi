@@ -355,14 +355,14 @@ export function GastosPage() {
               <div className="space-y-2">
                 <Label>Tarjeta</Label>
                 <Select
-                  value={formData.cardId}
-                  onValueChange={v => setFormData(f => ({ ...f, cardId: v }))}
+                  value={formData.cardId || 'none'}
+                  onValueChange={v => setFormData(f => ({ ...f, cardId: v === 'none' ? '' : v }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Sin tarjeta (efectivo/débito)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin tarjeta</SelectItem>
+                    <SelectItem value="none">Sin tarjeta</SelectItem>
                     {cards.map(card => (
                       <SelectItem key={card.id} value={card.id}>
                         {card.name}
