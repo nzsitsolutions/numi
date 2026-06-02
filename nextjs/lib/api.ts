@@ -47,6 +47,11 @@ interface ApiDeuda {
   monto: number
   moneda: 'ARS' | 'USD'
   estado: 'activa' | 'saldada'
+  notas: string | null
+  cuotasTotal: number | null
+  cuotasPagadas: number | null
+  cuotasRestantes: number | null
+  avancePorcentaje: number | null
 }
 
 interface ApiMovimiento {
@@ -179,6 +184,11 @@ function mapDeuda(d: ApiDeuda): Debt {
     amount: d.monto,
     currency: d.moneda,
     status: d.estado,
+    notes: d.notas ?? undefined,
+    totalInstallments: d.cuotasTotal ?? undefined,
+    paidInstallments: d.cuotasPagadas ?? undefined,
+    remainingInstallments: d.cuotasRestantes ?? undefined,
+    progress: d.avancePorcentaje ?? undefined,
   }
 }
 
@@ -367,11 +377,13 @@ export async function fetchDebts(): Promise<Debt[]> {
 }
 
 export async function createDebt(data: Omit<Debt, 'id'>): Promise<Debt> {
-  const body = {
+  const body: Record<string, unknown> = {
     descripcion: data.description,
     monto: data.amount,
     moneda: data.currency,
   }
+  if (data.totalInstallments != null) body.cuotasTotal = data.totalInstallments
+  if (data.notes) body.notas = data.notes
   const res = await post<SingleResponse<ApiDeuda>>('/api/deudas', body)
   return mapDeuda(res.data)
 }
@@ -381,6 +393,8 @@ export async function updateDebt(id: string, data: Partial<Debt>): Promise<Debt>
   if (data.description !== undefined) body.descripcion = data.description
   if (data.amount !== undefined) body.monto = data.amount
   if (data.currency !== undefined) body.moneda = data.currency
+  if (data.notes !== undefined) body.notas = data.notes
+  if (data.totalInstallments !== undefined) body.cuotasTotal = data.totalInstallments
   if (data.status !== undefined) body.estado = data.status
   const res = await patch<SingleResponse<ApiDeuda>>(`/api/deudas/${id}`, body)
   return mapDeuda(res.data)
@@ -392,6 +406,11 @@ export async function deleteDebt(id: string): Promise<void> {
 
 export async function markDebtAsPaid(id: string): Promise<Debt> {
   const res = await patch<SingleResponse<ApiDeuda>>(`/api/deudas/${id}`, { estado: 'saldada' })
+  return mapDeuda(res.data)
+}
+
+export async function payDebtInstallment(id: string): Promise<Debt> {
+  const res = await patch<SingleResponse<ApiDeuda>>(`/api/deudas/${id}/pagar-cuota`, {})
   return mapDeuda(res.data)
 }
 

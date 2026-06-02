@@ -1,0 +1,46 @@
+---
+description: Reglas para la gestión de migraciones de base de datos (Supabase SQL)
+globs:
+  - "nodejs/supabase/migrations/**/*.sql"
+alwaysApply: true
+---
+
+# Reglas de Migraciones de Base de Datos
+
+## Ubicación
+Todas las migraciones viven en `nodejs/supabase/migrations/`.
+
+## Nomenclatura
+El nombre de cada archivo sigue el formato:
+
+```
+YYYYMMDDHHMMSS_descripcion_breve.sql
+```
+
+Usar el timestamp local al momento de crear el archivo. La descripción debe ser corta y en snake_case.
+
+## Regla fundamental: NUNCA eliminar migraciones
+
+- **Está prohibido borrar archivos de migración existentes**, sin excepción.
+- Las migraciones son el registro histórico del estado de la base de datos. Eliminarlas rompe la trazabilidad y puede generar inconsistencias en entornos ya desplegados.
+
+## Cómo revertir un cambio
+
+Si un cambio aplicado por una migración previa debe deshacerse, **se crea una nueva migración** que realiza la operación inversa.
+
+Ejemplo — si `20260601213700_add_cuotas_notas_to_deudas_extra.sql` agrega columnas, la reversión sería:
+
+```sql
+-- 20260602000000_revert_cuotas_notas_from_deudas_extra.sql
+ALTER TABLE public.deudas_extra
+  DROP COLUMN IF EXISTS cuotas_total,
+  DROP COLUMN IF EXISTS cuotas_pagadas,
+  DROP COLUMN IF EXISTS notas;
+```
+
+## Buenas prácticas
+
+- Cada migración debe hacer **una sola cosa** (agregar tabla, agregar columnas, crear índice, etc.).
+- Incluir al inicio del archivo un comentario descriptivo y, si aplica, el SQL de reversión comentado para referencia rápida.
+- Las migraciones deben ser **idempotentes** cuando sea posible (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, etc.).
+- Nunca incluir lógica de negocio (esa va en los servicios de Node.js).

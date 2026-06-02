@@ -31,6 +31,14 @@ export default {
 
         res.status(200).json(single(deudasService.calcularVOs(data)));
     },
+    pagarCuota: async (req: any, res: any) => {
+        const { data, error } = await deudasService.pagarCuotaAsync(req.params.id);
+
+        if (error) return res.status(500).json(error);
+        if (!data) return res.status(404).json({ message: "deuda no encontrada" });
+
+        res.status(200).json(single(deudasService.calcularVOs(data)));
+    },
     delete: async (req: any, res: any) => {
         const { error } = await deudasService.deleteAsync(req.params.id);
 

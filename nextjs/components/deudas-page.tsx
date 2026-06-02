@@ -51,6 +51,8 @@ interface DebtFormData {
   currency: 'ARS' | 'USD'
   status: 'activa' | 'saldada'
   notes: string
+  hasCuotas: boolean
+  totalInstallments: string
 }
 
 const initialFormData: DebtFormData = {
@@ -58,7 +60,9 @@ const initialFormData: DebtFormData = {
   amount: '',
   currency: 'ARS',
   status: 'activa',
-  notes: ''
+  notes: '',
+  hasCuotas: false,
+  totalInstallments: '',
 }
 
 export function DeudasPage() {
@@ -68,7 +72,8 @@ export function DeudasPage() {
     addDebt, 
     updateDebt, 
     deleteDebt,
-    markDebtAsPaid
+    markDebtAsPaid,
+    payDebtInstallment,
   } = useNumi()
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -82,8 +87,10 @@ export function DeudasPage() {
   const activeDebts = debts.filter(d => d.status === 'activa')
   const paidDebts = debts.filter(d => d.status === 'saldada')
 
+  // For installment debts, monthly amount = amount per cuota; for fixed = full amount
   const totalActiveArs = activeDebts.reduce((sum, d) => {
-    return sum + (d.currency === 'ARS' ? d.amount : d.amount * period.exchangeRate)
+    const monthly = d.currency === 'ARS' ? d.amount : d.amount * period.exchangeRate
+    return sum + monthly
   }, 0)
 
   const openNewDebt = () => {
@@ -99,7 +106,9 @@ export function DeudasPage() {
       amount: debt.amount.toString(),
       currency: debt.currency,
       status: debt.status,
-      notes: debt.notes || ''
+      notes: debt.notes || '',
+      hasCuotas: debt.totalInstallments != null,
+      totalInstallments: debt.totalInstallments?.toString() || '',
     })
     setIsDialogOpen(true)
   }
@@ -113,7 +122,10 @@ export function DeudasPage() {
       amount: parseFloat(formData.amount),
       currency: formData.currency,
       status: formData.status,
-      notes: formData.notes || undefined
+      notes: formData.notes || undefined,
+      totalInstallments: formData.hasCuotas && formData.totalInstallments
+        ? parseInt(formData.totalInstallments)
+        : undefined,
     }
 
     try {
@@ -155,22 +167,42 @@ export function DeudasPage() {
     }
   }
 
-  const DebtCard = ({ debt }: { debt: Debt }) => (
-    <Card className={`bg-card border-border overflow-hidden transition-opacity ${debt.status === 'saldada' ? 'opacity-55' : ''}`}>
-      <div className={`h-0.5 ${debt.status === 'activa' ? 'bg-destructive/60' : 'bg-border'}`} />
+  const handlePayInstallment = async (id: string) => {
+    setPayingId(id)
+    try {
+      await payDebtInstallment(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo registrar la cuota')
+    } finally {
+      setPayingId(null)
+    }
+  }
+
+  const DebtCard = ({ debt }: { debt: Debt }) => {
+    const hasCuotas = debt.totalInstallments != null
+    const isActive = debt.status === 'activa'
+    const canPayInstallment = hasCuotas && isActive &&
+      (debt.remainingInstallments ?? 0) > 0
+
+    return (
+    <Card className={`bg-card border-border overflow-hidden transition-opacity ${!isActive ? 'opacity-55' : ''}`}>
+      <div className={`h-0.5 ${isActive ? 'bg-destructive/60' : 'bg-border'}`} />
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className={`font-medium ${debt.status === 'saldada' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+              <span className={`font-medium ${!isActive ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                 {debt.description}
               </span>
-              <Badge 
-                variant={debt.status === 'activa' ? 'destructive' : 'secondary'}
-                className="text-xs"
-              >
-                {debt.status === 'activa' ? 'Activa' : 'Saldada'}
-              </Badge>
+              {hasCuotas ? (
+                <Badge variant={isActive ? 'outline' : 'secondary'} className="text-xs">
+                  {debt.paidInstallments}/{debt.totalInstallments} cuotas
+                </Badge>
+              ) : (
+                <Badge variant={isActive ? 'destructive' : 'secondary'} className="text-xs">
+                  {isActive ? 'Activa' : 'Saldada'}
+                </Badge>
+              )}
             </div>
             {debt.notes && (
               <p className="text-sm text-muted-foreground">{debt.notes}</p>
@@ -178,12 +210,15 @@ export function DeudasPage() {
           </div>
 
           <div className="text-right flex-shrink-0">
-            <div className={`font-semibold tabular-nums ${debt.status === 'activa' ? 'text-foreground' : 'text-muted-foreground'}`}>
+            <div className={`font-semibold tabular-nums ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
               {debt.currency === 'USD' 
                 ? formatUsd(debt.amount)
                 : formatArs(debt.amount)
               }
             </div>
+            <p className="text-xs text-muted-foreground">
+              {hasCuotas ? 'por cuota' : 'total'}
+            </p>
             {debt.currency === 'USD' && (
               <p className="text-xs text-muted-foreground tabular-nums">
                 ≈ {formatArs(debt.amount * period.exchangeRate)}
@@ -192,8 +227,50 @@ export function DeudasPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
-          {debt.status === 'activa' && (
+        {/* Installment progress bar */}
+        {hasCuotas && (
+          <div className="mt-3 space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">
+                Pagadas: <span className="font-medium text-foreground">{debt.paidInstallments}</span>
+              </span>
+              <span className={`font-medium ${
+                (debt.progress ?? 0) >= 80 ? 'text-emerald-600 dark:text-emerald-400' :
+                (debt.progress ?? 0) >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-primary'
+              }`}>{debt.progress ?? 0}%</span>
+            </div>
+            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  (debt.progress ?? 0) >= 80 ? 'bg-emerald-500' :
+                  (debt.progress ?? 0) >= 50 ? 'bg-amber-500' : 'bg-primary'
+                }`}
+                style={{ width: `${debt.progress ?? 0}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground text-right">
+              {debt.remainingInstallments} cuota{debt.remainingInstallments !== 1 ? 's' : ''} restante{debt.remainingInstallments !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+          {isActive && canPayInstallment && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-primary border-primary/30 hover:bg-primary/10"
+              disabled={payingId === debt.id}
+              onClick={() => handlePayInstallment(debt.id)}
+            >
+              {payingId === debt.id
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <CheckCircle2 className="h-4 w-4" />
+              }
+              Pagar cuota
+            </Button>
+          )}
+          {isActive && !hasCuotas && (
             <Button
               variant="outline"
               size="sm"
@@ -228,7 +305,8 @@ export function DeudasPage() {
         </div>
       </CardContent>
     </Card>
-  )
+    )
+  }
 
   return (
     <div className="p-4 lg:p-8 space-y-8">
@@ -302,6 +380,42 @@ export function DeudasPage() {
                 </div>
               </div>
 
+              {/* Cuotas toggle */}
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Pagar en cuotas</p>
+                  <p className="text-xs text-muted-foreground">El monto es el valor de cada cuota</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={formData.hasCuotas}
+                  onClick={() => setFormData(f => ({ ...f, hasCuotas: !f.hasCuotas, totalInstallments: '' }))}
+                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    formData.hasCuotas ? 'bg-primary' : 'bg-input'
+                  }`}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    formData.hasCuotas ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {formData.hasCuotas && (
+                <div className="space-y-2">
+                  <Label htmlFor="totalInstallments">Cantidad de cuotas</Label>
+                  <Input
+                    id="totalInstallments"
+                    type="number"
+                    min="2"
+                    value={formData.totalInstallments}
+                    onChange={e => setFormData(f => ({ ...f, totalInstallments: e.target.value }))}
+                    placeholder="12"
+                    required
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Estado</Label>
                 <Select
@@ -325,7 +439,7 @@ export function DeudasPage() {
                   value={formData.notes}
                   onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))}
                   placeholder="Notas adicionales..."
-                  rows={3}
+                  rows={2}
                 />
               </div>
 

@@ -34,10 +34,15 @@ export interface Income {
 export interface Debt {
   id: string
   description: string
-  amount: number
+  amount: number           // monto por cuota (o total si es fijo)
   currency: 'ARS' | 'USD'
   status: 'activa' | 'saldada'
   notes?: string
+  // Cuotas (undefined = monto fijo de una sola vez)
+  totalInstallments?: number
+  paidInstallments?: number
+  remainingInstallments?: number
+  progress?: number
 }
 
 export interface PendingMovement {

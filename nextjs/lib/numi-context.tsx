@@ -45,6 +45,7 @@ interface NumiContextType {
   updateDebt: (id: string, debt: Partial<Debt>) => Promise<void>
   deleteDebt: (id: string) => Promise<void>
   markDebtAsPaid: (id: string) => Promise<void>
+  payDebtInstallment: (id: string) => Promise<void>
 
   // Movement actions
   confirmMovement: (id: string) => Promise<void>
@@ -208,6 +209,12 @@ export function NumiProvider({ children }: { children: ReactNode }) {
     setDebts(d => d.map(item => item.id === id ? updated : item))
   }, [])
 
+  const payDebtInstallment = useCallback(async (id: string) => {
+    const updated = await api.payDebtInstallment(id)
+    // If the debt was auto-saldada by the backend, remove it from active list
+    setDebts(d => d.map(item => item.id === id ? updated : item))
+  }, [])
+
   // ── Movement actions ────────────────────────────────────────────────────────
   const confirmMovement = useCallback(async (id: string) => {
     await api.confirmMovement(id)
@@ -356,6 +363,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       updateDebt,
       deleteDebt,
       markDebtAsPaid,
+      payDebtInstallment,
       confirmMovement,
       discardMovement,
       refreshMovements,

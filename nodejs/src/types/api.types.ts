@@ -50,12 +50,15 @@ export interface UpdateTipoCambioDto {
 // ─── DEUDAS ─────────────────────────────────────────────────
 export interface CreateDeudaDto {
     descripcion: string
-    monto: number
+    monto: number               // monto por cuota (o monto total si es fijo)
     moneda: Moneda
+    cuotasTotal?: number        // undefined = monto fijo de una sola vez
+    notas?: string
 }
 
 export interface UpdateDeudaDto extends Partial<CreateDeudaDto> {
     estado?: 'activa' | 'saldada'
+    cuotasPagadas?: number
 }
 
 // ─── IMPORTACIONES ──────────────────────────────────────────
