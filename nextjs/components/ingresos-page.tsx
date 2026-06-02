@@ -50,7 +50,6 @@ interface IncomeFormData {
   amountUsd: string
   currency: 'ARS' | 'USD' | 'both'
   period: string
-  exchangeRate: string
 }
 
 const initialFormData: IncomeFormData = {
@@ -59,7 +58,6 @@ const initialFormData: IncomeFormData = {
   amountUsd: '',
   currency: 'ARS',
   period: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
-  exchangeRate: '1420'
 }
 
 export function IngresosPage() {
@@ -89,10 +87,7 @@ export function IngresosPage() {
 
   const openNewIncome = () => {
     setEditingIncome(null)
-    setFormData({
-      ...initialFormData,
-      exchangeRate: period.exchangeRate.toString()
-    })
+    setFormData(initialFormData)
     setIsDialogOpen(true)
   }
 
@@ -104,7 +99,6 @@ export function IngresosPage() {
       amountUsd: income.amountUsd?.toString() || '',
       currency: income.currency,
       period: income.period,
-      exchangeRate: income.exchangeRate?.toString() || period.exchangeRate.toString()
     })
     setIsDialogOpen(true)
   }
@@ -119,7 +113,6 @@ export function IngresosPage() {
       amountUsd: formData.amountUsd ? parseFloat(formData.amountUsd) : undefined,
       currency: formData.currency,
       period: formData.period,
-      exchangeRate: parseFloat(formData.exchangeRate) || period.exchangeRate
     }
 
     try {
@@ -235,19 +228,6 @@ export function IngresosPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="exchangeRate">Cotización USD</Label>
-                <Input
-                  id="exchangeRate"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.exchangeRate}
-                  onChange={e => setFormData(f => ({ ...f, exchangeRate: e.target.value }))}
-                  placeholder="1420"
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="period">Período</Label>
                 <Input
                   id="period"
@@ -356,25 +336,20 @@ export function IngresosPage() {
                         {income.currency === 'both' ? 'ARS + USD' : income.currency}
                       </Badge>
                     </div>
-                    {income.exchangeRate && income.amountUsd && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Cotización: {formatArs(income.exchangeRate)}
-                      </p>
-                    )}
                   </div>
 
                   <div className="text-right">
                     {income.amountArs && (
-                      <div className="font-semibold text-success tabular-nums">
+                      <div className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
                         {formatArs(income.amountArs)}
                       </div>
                     )}
                     {income.amountUsd && (
-                      <div className={`text-sm tabular-nums ${income.amountArs ? 'text-muted-foreground' : 'font-semibold text-success'}`}>
+                      <div className={`text-sm tabular-nums ${income.amountArs ? 'text-muted-foreground' : 'font-semibold text-emerald-600 dark:text-emerald-400'}`}>
                         {formatUsd(income.amountUsd)}
                         {!income.amountArs && (
                           <span className="text-xs text-muted-foreground ml-1">
-                            ≈ {formatArs(income.amountUsd * (income.exchangeRate || period.exchangeRate))}
+                            ≈ {formatArs(income.amountUsd * period.exchangeRate)}
                           </span>
                         )}
                       </div>

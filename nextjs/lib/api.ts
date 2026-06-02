@@ -338,7 +338,7 @@ export async function createIncome(data: Omit<Income, 'id'>, exchangeRate: numbe
     montoUSD: data.amountUsd,
     moneda,
     periodo: data.period + '-01',
-    tipoCambio: data.exchangeRate ?? exchangeRate,
+    tipoCambio: exchangeRate,
   }
   const res = await post<SingleResponse<ApiIngreso>>('/api/ingresos', body)
   return mapIngreso(res.data)
@@ -351,8 +351,7 @@ export async function updateIncome(id: string, data: Partial<Income>, exchangeRa
   if (data.amountUsd !== undefined) body.montoUSD = data.amountUsd
   if (data.currency !== undefined) body.moneda = data.currency === 'USD' ? 'USD' : 'ARS'
   if (data.period !== undefined) body.periodo = data.period + '-01'
-  if (data.exchangeRate !== undefined) body.tipoCambio = data.exchangeRate
-  else body.tipoCambio = exchangeRate
+  body.tipoCambio = exchangeRate
   const res = await patch<SingleResponse<ApiIngreso>>(`/api/ingresos/${id}`, body)
   return mapIngreso(res.data)
 }
@@ -452,4 +451,25 @@ export async function syncDriveNaranjaX(): Promise<ImportResult> {
 export async function syncDriveBbva(): Promise<ImportResult> {
   const res = await post<SingleResponse<ImportResult>>('/api/importaciones/bbva/drive-sync')
   return res.data
+}
+
+// ─── Cotización en tiempo real (dolarapi.com) ────────────────────────────────
+
+export interface LiveRate {
+  casa: 'oficial' | 'blue' | 'tarjeta' | 'bolsa' | 'contadoconliqui' | 'cripto' | 'mayorista'
+  nombre: string
+  compra: number
+  venta: number
+  fechaActualizacion: string
+}
+
+const LIVE_RATE_TYPES: LiveRate['casa'][] = ['oficial', 'blue', 'tarjeta']
+
+export async function fetchLiveRates(): Promise<LiveRate[]> {
+  const res = await fetch('https://dolarapi.com/v1/dolares', {
+    next: { revalidate: 0 },
+  } as RequestInit)
+  if (!res.ok) throw new Error('No se pudo obtener la cotización')
+  const all: LiveRate[] = await res.json()
+  return all.filter(r => LIVE_RATE_TYPES.includes(r.casa))
 }

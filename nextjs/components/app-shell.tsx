@@ -9,10 +9,10 @@ import {
   CreditCard, 
   Landmark, 
   FileDown,
-  ChevronLeft,
-  ChevronRight,
   Menu,
-  X
+  X,
+  RefreshCw,
+  Zap
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNumi } from '@/lib/numi-context'
@@ -21,8 +21,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { fetchLiveRates, LiveRate } from '@/lib/api'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -33,19 +35,55 @@ const navItems = [
   { href: '/importaciones', label: 'Importaciones', icon: FileDown },
 ]
 
+const RATE_LABELS: Record<string, { label: string; color: string }> = {
+  oficial: { label: 'Oficial', color: 'text-muted-foreground' },
+  blue:    { label: 'Blue',    color: 'text-blue-600 dark:text-blue-400' },
+  tarjeta: { label: 'Tarjeta', color: 'text-orange-600 dark:text-orange-400' },
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { period, nextPeriod, prevPeriod, updateExchangeRate, isLoading } = useNumi()
-  const [editingRate, setEditingRate] = useState(false)
+  const { period, updateExchangeRate, isLoading } = useNumi()
+  const [popoverOpen, setPopoverOpen] = useState(false)
   const [rateValue, setRateValue] = useState(period.exchangeRate.toString())
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [liveRates, setLiveRates] = useState<LiveRate[]>([])
+  const [fetchingLive, setFetchingLive] = useState(false)
+  const [liveError, setLiveError] = useState(false)
 
-  const handleRateSubmit = () => {
+  const refreshLiveRates = useCallback(async () => {
+    setFetchingLive(true)
+    setLiveError(false)
+    try {
+      const rates = await fetchLiveRates()
+      setLiveRates(rates)
+    } catch {
+      setLiveError(true)
+    } finally {
+      setFetchingLive(false)
+    }
+  }, [])
+
+  const handlePopoverOpen = (open: boolean) => {
+    setPopoverOpen(open)
+    if (open) {
+      setRateValue(period.exchangeRate.toString())
+      if (liveRates.length === 0) refreshLiveRates()
+    }
+  }
+
+  const handleApplyRate = (venta: number) => {
+    updateExchangeRate(venta)
+    setRateValue(venta.toString())
+    setPopoverOpen(false)
+  }
+
+  const handleManualSubmit = () => {
     const newRate = parseFloat(rateValue)
     if (!isNaN(newRate) && newRate > 0) {
       updateExchangeRate(newRate)
     }
-    setEditingRate(false)
+    setPopoverOpen(false)
   }
 
   return (
@@ -132,61 +170,97 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
 
-            {/* Period Selector */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={prevPeriod}
-                className="h-8 w-8"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-medium min-w-[120px] text-center">
-                {getMonthName(period.month)} {period.year}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={nextPeriod}
-                className="h-8 w-8"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            {/* Period Label */}
+            <span className="text-sm font-semibold text-foreground capitalize">
+              {getMonthName(period.month)} {period.year}
+            </span>
 
             {/* Exchange Rate & Theme */}
             <div className="flex items-center gap-3">
-              <Popover open={editingRate} onOpenChange={setEditingRate}>
+              <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-xs font-mono tabular-nums"
+                    className="h-8 text-xs font-mono tabular-nums gap-1.5"
                   >
+                    <Zap className="h-3 w-3 text-blue-500" />
                     USD {formatArs(period.exchangeRate)}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-48 p-3" align="end">
-                  <div className="space-y-3">
-                    <label className="text-xs text-muted-foreground">
-                      Cotización del dólar
-                    </label>
-                    <Input
-                      type="number"
-                      value={rateValue}
-                      onChange={(e) => setRateValue(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleRateSubmit()}
-                      className="h-8 text-sm font-mono"
-                      placeholder="1420"
-                    />
-                    <Button
-                      size="sm"
-                      className="w-full h-8"
-                      onClick={handleRateSubmit}
-                    >
-                      Guardar
-                    </Button>
+                <PopoverContent className="w-64 p-0 overflow-hidden" align="end">
+                  {/* Live rates section */}
+                  <div className="p-3 space-y-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Cotización en vivo
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={refreshLiveRates}
+                        disabled={fetchingLive}
+                      >
+                        <RefreshCw className={cn('h-3 w-3', fetchingLive && 'animate-spin')} />
+                      </Button>
+                    </div>
+
+                    {liveError && (
+                      <p className="text-xs text-destructive py-1">
+                        Sin conexión a dolarapi.com
+                      </p>
+                    )}
+
+                    {fetchingLive && liveRates.length === 0 ? (
+                      <div className="space-y-1.5">
+                        {[1,2,3].map(i => <Skeleton key={i} className="h-8 rounded-md" />)}
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {liveRates.map(rate => {
+                          const meta = RATE_LABELS[rate.casa] ?? { label: rate.nombre, color: 'text-foreground' }
+                          const isActive = Math.round(period.exchangeRate) === Math.round(rate.venta)
+                          return (
+                            <button
+                              key={rate.casa}
+                              onClick={() => handleApplyRate(rate.venta)}
+                              className={cn(
+                                'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-sm transition-colors',
+                                isActive
+                                  ? 'bg-primary/10 ring-1 ring-primary/30'
+                                  : 'hover:bg-secondary'
+                              )}
+                            >
+                              <span className={cn('font-medium', meta.color)}>{meta.label}</span>
+                              <span className="font-mono tabular-nums text-foreground">
+                                {formatArs(rate.venta)}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Manual input */}
+                  <div className="p-3 space-y-2">
+                    <span className="text-xs text-muted-foreground">O ingresá manualmente</span>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={rateValue}
+                        onChange={(e) => setRateValue(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+                        className="h-8 text-sm font-mono flex-1"
+                        placeholder="1420"
+                      />
+                      <Button size="sm" className="h-8 px-3" onClick={handleManualSubmit}>
+                        OK
+                      </Button>
+                    </div>
                   </div>
                 </PopoverContent>
               </Popover>

@@ -23,8 +23,6 @@ interface NumiContextType {
   // Period actions
   setPeriod: (period: Period) => void
   updateExchangeRate: (rate: number) => void
-  nextPeriod: () => void
-  prevPeriod: () => void
 
   // Card actions
   addCard: (card: Omit<CreditCard, 'id'>) => Promise<void>
@@ -102,10 +100,14 @@ export function NumiProvider({ children }: { children: ReactNode }) {
         setPendingMovements(fetchedMovements)
         setIncomes(fetchedIncomes)
 
-        // Fetch exchange rate for current period
-        const periodo = await api.fetchPeriodo(year, month)
-        if (periodo) {
-          setPeriodState(p => ({ ...p, exchangeRate: periodo.tipoCambio }))
+        // Always try live blue dollar first; fall back to stored rate if API fails
+        try {
+          const liveRates = await api.fetchLiveRates()
+          const blue = liveRates.find(r => r.casa === 'blue')
+          if (blue) setPeriodState(p => ({ ...p, exchangeRate: blue.venta }))
+        } catch {
+          const periodo = await api.fetchPeriodo(year, month)
+          if (periodo) setPeriodState(p => ({ ...p, exchangeRate: periodo.tipoCambio }))
         }
       } catch (err) {
         console.error('[numi] init error:', err)
@@ -119,23 +121,6 @@ export function NumiProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Refetch exchange rate when period month/year changes ────────────────────
-  const prevPeriodRef = useRef({ month, year })
-  useEffect(() => {
-    const prev = prevPeriodRef.current
-    if (!isInitialized.current) return
-    if (prev.month === period.month && prev.year === period.year) return
-    prevPeriodRef.current = { month: period.month, year: period.year }
-
-    const fetch = async () => {
-      const periodo = await api.fetchPeriodo(period.year, period.month)
-      if (periodo) {
-        setPeriodState(p => ({ ...p, exchangeRate: periodo.tipoCambio }))
-      }
-    }
-    fetch()
-  }, [period.month, period.year])
-
   // ── Period actions ──────────────────────────────────────────────────────────
   const setPeriod = useCallback((p: Period) => setPeriodState(p), [])
 
@@ -146,22 +131,6 @@ export function NumiProvider({ children }: { children: ReactNode }) {
         toast.error('No se pudo guardar la cotización')
       })
       return next
-    })
-  }, [])
-
-  const nextPeriod = useCallback(() => {
-    setPeriodState(p => {
-      const newMonth = p.month === 12 ? 1 : p.month + 1
-      const newYear = p.month === 12 ? p.year + 1 : p.year
-      return { ...p, month: newMonth, year: newYear }
-    })
-  }, [])
-
-  const prevPeriod = useCallback(() => {
-    setPeriodState(p => {
-      const newMonth = p.month === 1 ? 12 : p.month - 1
-      const newYear = p.month === 1 ? p.year - 1 : p.year
-      return { ...p, month: newMonth, year: newYear }
     })
   }, [])
 
@@ -373,8 +342,6 @@ export function NumiProvider({ children }: { children: ReactNode }) {
       isLoading,
       setPeriod,
       updateExchangeRate,
-      nextPeriod,
-      prevPeriod,
       addCard,
       updateCard,
       deleteCard,
