@@ -2,3 +2,5 @@
 /src/generated/prisma
 
 .env
+
+/supabase/.temp/

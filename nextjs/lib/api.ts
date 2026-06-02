@@ -1,6 +1,6 @@
 import { CreditCard, Expense, Income, Debt, PendingMovement, ExpenseWithCalculations } from '@/lib/types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+const BASE_URL = ''
 
 // ─── Backend response types ──────────────────────────────────────────────────
 
