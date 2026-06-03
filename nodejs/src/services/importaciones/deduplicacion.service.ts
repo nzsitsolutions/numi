@@ -1,4 +1,4 @@
-import supabase from "../../config/supabase.js";
+import { getSupabase } from "../../config/supabase.js";
 
 export interface MovimientoRaw {
     fecha: string;     
@@ -19,7 +19,7 @@ export default {
     filtrarNuevos: async (
         movimientos: MovimientoRaw[],
     ): Promise<{ nuevos: MovimientoRaw[]; duplicados: number }> => {
-        const { data } = await supabase
+        const { data } = await getSupabase()
             .from("movimientos_importados")
             .select("fecha, descripcion, monto_ars");
 

@@ -1,15 +1,15 @@
-import supabase from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import { CreateTarjetaDto, UpdateTarjetaDto } from "../types/api.types.js";
 
 export default {
     getListAsync: () => {
-        return supabase.from("tarjetas").select("*").order("fecha_cierre");
+        return getSupabase().from("tarjetas").select("*").order("fecha_cierre");
     },
     firstOrDefaultAsync: (id: string) => {
-        return supabase.from("tarjetas").select("*").eq("id", id);
+        return getSupabase().from("tarjetas").select("*").eq("id", id);
     },
     insertAsync: (dto: CreateTarjetaDto) => {
-        return supabase
+        return getSupabase()
             .from("tarjetas")
             .insert({
                 nombre: dto.nombre,
@@ -21,7 +21,7 @@ export default {
             .single();
     },
     updateAsync: (id: string, dto: UpdateTarjetaDto) => {
-        return supabase
+        return getSupabase()
             .from("tarjetas")
             .update({
                 ...(dto.nombre !== undefined && { nombre: dto.nombre }),
@@ -34,7 +34,7 @@ export default {
             .single();
     },
     deleteAsync: (id: string) => {
-        return supabase.from("tarjetas").delete().eq("id", id);
+        return getSupabase().from("tarjetas").delete().eq("id", id);
     },
     calcularVOs: (tarjeta: any) => {
         return {

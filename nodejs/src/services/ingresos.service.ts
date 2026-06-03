@@ -1,17 +1,17 @@
-import supabase from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import { CreateIngresoDto, UpdateIngresoDto } from "../types/api.types.js";
 import { IngresoDto } from "../types/ingreso-dto.js";
 
 export default {
     getListAsync: (periodo?: string) => {
-        const query = supabase.from("ingresos").select("*").order("periodo", { ascending: false });
+        const query = getSupabase().from("ingresos").select("*").order("periodo", { ascending: false });
         return periodo ? query.eq("periodo", periodo) : query;
     },
     firstOrDefaultAsync: (id: string) => {
-        return supabase.from("ingresos").select("*").eq("id", id);
+        return getSupabase().from("ingresos").select("*").eq("id", id);
     },
     insertAsync: (dto: CreateIngresoDto) => {
-        return supabase
+        return getSupabase()
             .from("ingresos")
             .insert({
                 descripcion: dto.descripcion,
@@ -25,7 +25,7 @@ export default {
             .single();
     },
     updateAsync: (id: string, dto: UpdateIngresoDto) => {
-        return supabase
+        return getSupabase()
             .from("ingresos")
             .update({
                 ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
@@ -40,7 +40,7 @@ export default {
             .single();
     },
     deleteAsync: (id: string) => {
-        return supabase.from("ingresos").delete().eq("id", id);
+        return getSupabase().from("ingresos").delete().eq("id", id);
     },
     calcularVOs: (ingreso: any): IngresoDto => {
         return {

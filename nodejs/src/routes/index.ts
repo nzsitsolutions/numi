@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authMiddleware } from '../middleware/auth.middleware.js';
 import gastosRouter from './gastos.routes.js';
 import ingresosRouter from './ingresos.routes.js';
 import tarjetasRouter from './tarjetas.routes.js';
@@ -7,6 +8,8 @@ import deudasRouter from './deudas.routes.js';
 import importacionesRouter from './importaciones.routes.js';
 
 const router = Router();
+
+router.use(authMiddleware);
 
 router.use('/gastos', gastosRouter);
 router.use('/ingresos', ingresosRouter);

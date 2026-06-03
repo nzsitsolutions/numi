@@ -1,4 +1,4 @@
-import supabase from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import { CreateGastoDto, UpdateGastoDto } from "../types/api.types.js";
 import { GastoConCalculo, GrupoTarjeta } from "../types/database.types.js";
 
@@ -48,20 +48,20 @@ const calcularVOs = (gasto: any, tipoCambio: number = 1): GastoConCalculo => {
 
 export default {
     getListAsync: () => {
-        return supabase
+        return getSupabase()
             .from("gastos")
             .select("*")
             .eq("activo", true)
             .order("nombre");
     },
     firstOrDefaultAsync: (id: string) => {
-        return supabase.from("gastos").select("*").eq("id", id);
+        return getSupabase().from("gastos").select("*").eq("id", id);
     },
     // Trae gastos activos + tarjetas, para agrupar por origen/tarjeta
     getAgrupadoSourceAsync: async () => {
         const [gastos, tarjetas] = await Promise.all([
-            supabase.from("gastos").select("*").eq("activo", true).order("nombre"),
-            supabase.from("tarjetas").select("id, nombre"),
+            getSupabase().from("gastos").select("*").eq("activo", true).order("nombre"),
+            getSupabase().from("tarjetas").select("id, nombre"),
         ]);
         return { gastos, tarjetas };
     },
@@ -97,7 +97,7 @@ export default {
         }));
     },
     insertAsync: (dto: CreateGastoDto) => {
-        return supabase
+        return getSupabase()
             .from("gastos")
             .insert({
                 nombre: dto.nombre,
@@ -114,7 +114,7 @@ export default {
             .single();
     },
     updateAsync: (id: string, dto: UpdateGastoDto) => {
-        return supabase
+        return getSupabase()
             .from("gastos")
             .update({
                 ...(dto.nombre !== undefined && { nombre: dto.nombre }),
@@ -132,7 +132,7 @@ export default {
     },
     deleteAsync: (id: string) => {
         // Soft delete — nunca borramos datos financieros, solo los desactivamos
-        return supabase.from("gastos").update({ activo: false }).eq("id", id);
+        return getSupabase().from("gastos").update({ activo: false }).eq("id", id);
     },
     pagarCuota: async (gasto: any) => {
         if (String(gasto.tipo).toLowerCase() === "fijo") {
@@ -146,7 +146,7 @@ export default {
             };
         }
 
-        return supabase
+        return getSupabase()
             .from("gastos")
             .update({ cuotas_pagadas: gasto.cuotas_pagadas + 1 })
             .eq("id", gasto.id)

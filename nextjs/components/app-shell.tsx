@@ -12,8 +12,11 @@ import {
   Menu,
   X,
   RefreshCw,
-  Zap
+  Zap,
+  LogOut,
 } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useNumi } from '@/lib/numi-context'
 import { formatArs, getMonthName } from '@/lib/format'
@@ -43,6 +46,8 @@ const RATE_LABELS: Record<string, { label: string; color: string }> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, signOut } = useAuth()
   const { period, updateExchangeRate, isLoading } = useNumi()
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [rateValue, setRateValue] = useState(period.exchangeRate.toString())
@@ -123,8 +128,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-border flex-shrink-0">
-          <ThemeToggle />
+        <div className="p-4 border-t border-border flex-shrink-0 space-y-3">
+          {user?.email && (
+            <p className="text-xs text-muted-foreground truncate px-1" title={user.email}>
+              {user.email}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={async () => {
+                await signOut()
+                router.replace('/login')
+                router.refresh()
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-1" />
+              Salir
+            </Button>
+          </div>
         </div>
       </aside>
 

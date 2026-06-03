@@ -9,6 +9,7 @@ import {
   ExpenseWithCalculations, CardSummary
 } from '@/lib/types'
 import * as api from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 
 interface NumiContextType {
   // State
@@ -70,6 +71,7 @@ function currentMonthYear() {
 }
 
 export function NumiProvider({ children }: { children: ReactNode }) {
+  const { session, isLoading: authLoading } = useAuth()
   const { month, year } = currentMonthYear()
 
   const [period, setPeriodState] = useState<Period>({ month, year, exchangeRate: 1420 })
@@ -83,6 +85,10 @@ export function NumiProvider({ children }: { children: ReactNode }) {
 
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (authLoading || !session) {
+      if (!authLoading && !session) setIsLoading(false)
+      return
+    }
     const init = async () => {
       setIsLoading(true)
       try {
@@ -120,7 +126,7 @@ export function NumiProvider({ children }: { children: ReactNode }) {
     }
     init()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [authLoading, session])
 
   // ── Period actions ──────────────────────────────────────────────────────────
   const setPeriod = useCallback((p: Period) => setPeriodState(p), [])

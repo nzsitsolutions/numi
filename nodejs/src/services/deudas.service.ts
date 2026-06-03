@@ -1,4 +1,4 @@
-import supabase from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import { CreateDeudaDto, UpdateDeudaDto } from "../types/api.types.js";
 
 const calcularVOs = (deuda: any) => {
@@ -29,17 +29,17 @@ const calcularVOs = (deuda: any) => {
 
 export default {
     getListAsync: () => {
-        return supabase
+        return getSupabase()
             .from("deudas_extra")
             .select("*")
             .eq("estado", "activa")
             .order("descripcion");
     },
     firstOrDefaultAsync: (id: string) => {
-        return supabase.from("deudas_extra").select("*").eq("id", id);
+        return getSupabase().from("deudas_extra").select("*").eq("id", id);
     },
     insertAsync: (dto: CreateDeudaDto) => {
-        return supabase
+        return getSupabase()
             .from("deudas_extra")
             .insert({
                 descripcion: dto.descripcion,
@@ -53,7 +53,7 @@ export default {
             .single();
     },
     updateAsync: (id: string, dto: UpdateDeudaDto) => {
-        return supabase
+        return getSupabase()
             .from("deudas_extra")
             .update({
                 ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
@@ -70,7 +70,7 @@ export default {
     },
     pagarCuotaAsync: async (id: string) => {
         // Fetch current state, increment cuotas_pagadas by 1
-        const { data: current, error: fetchErr } = await supabase
+        const { data: current, error: fetchErr } = await getSupabase()
             .from("deudas_extra")
             .select("cuotas_pagadas, cuotas_total")
             .eq("id", id)
@@ -80,7 +80,7 @@ export default {
         const nuevasPagadas = (current.cuotas_pagadas ?? 0) + 1;
         const saldada = current.cuotas_total != null && nuevasPagadas >= current.cuotas_total;
 
-        return supabase
+        return getSupabase()
             .from("deudas_extra")
             .update({
                 cuotas_pagadas: nuevasPagadas,
@@ -91,7 +91,7 @@ export default {
             .single();
     },
     deleteAsync: (id: string) => {
-        return supabase.from("deudas_extra").update({ estado: "saldada" }).eq("id", id);
+        return getSupabase().from("deudas_extra").update({ estado: "saldada" }).eq("id", id);
     },
     calcularVOs,
 };

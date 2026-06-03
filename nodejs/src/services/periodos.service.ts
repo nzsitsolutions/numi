@@ -1,23 +1,23 @@
-import supabase from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import { CreatePeriodoDto } from "../types/api.types.js";
 
 export default {
     getListAsync: () => {
-        return supabase
+        return getSupabase()
             .from("periodos_mensuales")
             .select("*")
             .order("anio", { ascending: false })
             .order("mes", { ascending: false });
     },
     firstOrDefaultAsync: (anio: number, mes: number) => {
-        return supabase
+        return getSupabase()
             .from("periodos_mensuales")
             .select("*")
             .eq("anio", anio)
             .eq("mes", mes);
     },
     insertAsync: (dto: CreatePeriodoDto) => {
-        return supabase
+        return getSupabase()
             .from("periodos_mensuales")
             .insert({
                 anio: dto.anio,
@@ -28,7 +28,7 @@ export default {
             .single();
     },
     updateTipoCambioAsync: (anio: number, mes: number, tipoCambio: number) => {
-        return supabase
+        return getSupabase()
             .from("periodos_mensuales")
             .update({ tipo_cambio: tipoCambio })
             .eq("anio", anio)
@@ -42,7 +42,7 @@ export default {
         const anio = hoy.getUTCFullYear();
         const mes = hoy.getUTCMonth() + 1;
 
-        const actual = await supabase
+        const actual = await getSupabase()
             .from("periodos_mensuales")
             .select("tipo_cambio")
             .eq("anio", anio)
@@ -50,7 +50,7 @@ export default {
             .maybeSingle();
         if (actual.data?.tipo_cambio) return actual.data.tipo_cambio;
 
-        const ultimo = await supabase
+        const ultimo = await getSupabase()
             .from("periodos_mensuales")
             .select("tipo_cambio")
             .order("anio", { ascending: false })

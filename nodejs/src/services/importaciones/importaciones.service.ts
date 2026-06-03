@@ -1,4 +1,4 @@
-import supabase from "../../config/supabase.js";
+import { getSupabase } from "../../config/supabase.js";
 import gastosService from "../gastos.service.js";
 import driveService from "./drive.service.js";
 import naranjaxParser from "./naranjax.parser.js";
@@ -20,7 +20,7 @@ const insertMovimientos = (movimientos: MovimientoRaw[], archivoOrigen?: string)
         estado_revision: "pendiente",
         archivo_origen: archivoOrigen ?? null,
     }));
-    return supabase.from("movimientos_importados").insert(filas).select("*");
+    return getSupabase().from("movimientos_importados").insert(filas).select("*");
 };
 
 // Pipeline genérico para un buffer ya en memoria (upload directo)
@@ -84,14 +84,14 @@ const syncDrive = async (
 
 export default {
     getPendientesAsync: () => {
-        return supabase
+        return getSupabase()
             .from("movimientos_importados")
             .select("*")
             .eq("estado_revision", "pendiente")
             .order("fecha", { ascending: false });
     },
     firstOrDefaultAsync: (id: string) => {
-        return supabase.from("movimientos_importados").select("*").eq("id", id);
+        return getSupabase().from("movimientos_importados").select("*").eq("id", id);
     },
     insertManyAsync: (movimientos: MovimientoRaw[], archivoOrigen?: string) => {
         return insertMovimientos(movimientos, archivoOrigen);
@@ -116,7 +116,7 @@ export default {
 
         // tarjeta: se busca por nombre == origen del movimiento (ej. "NaranjaX").
         // Si no existe, se corta con error y NO se crea el gasto.
-        const { data: tarjeta, error: tarjetaError } = await supabase
+        const { data: tarjeta, error: tarjetaError } = await getSupabase()
             .from("tarjetas")
             .select("id")
             .eq("nombre", movimiento.origen)
@@ -140,7 +140,7 @@ export default {
 
         if (gastoError) return { data: null, error: gastoError };
 
-        const { error: movError } = await supabase
+        const { error: movError } = await getSupabase()
             .from("movimientos_importados")
             .update({ estado_revision: "confirmado", gasto_id: gasto.id })
             .eq("id", movimiento.id);
@@ -150,7 +150,7 @@ export default {
         return { data: gasto, error: null };
     },
     descartarAsync: (id: string) => {
-        return supabase
+        return getSupabase()
             .from("movimientos_importados")
             .update({ estado_revision: "descartado" })
             .eq("id", id)

@@ -1,4 +1,4 @@
-import supabase from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import gastosService from "./gastos.service.js";
 import { ResumenMensual } from "../types/database.types.js";
 
@@ -15,11 +15,11 @@ export default {
 
         // Carga en paralelo todo lo que necesita el resumen
         const [gastos, ingresos, tarjetas, periodoMensual, deudas] = await Promise.all([
-            supabase.from("gastos").select("*").eq("activo", true),
-            supabase.from("ingresos").select("*").gte("periodo", desde).lt("periodo", hasta),
-            supabase.from("tarjetas").select("*"),
-            supabase.from("periodos_mensuales").select("*").eq("anio", anio).eq("mes", mes).maybeSingle(),
-            supabase.from("deudas_extra").select("*").eq("estado", "activa"),
+            getSupabase().from("gastos").select("*").eq("activo", true),
+            getSupabase().from("ingresos").select("*").gte("periodo", desde).lt("periodo", hasta),
+            getSupabase().from("tarjetas").select("*"),
+            getSupabase().from("periodos_mensuales").select("*").eq("anio", anio).eq("mes", mes).maybeSingle(),
+            getSupabase().from("deudas_extra").select("*").eq("estado", "activa"),
         ]);
 
         const primerError = gastos.error || ingresos.error || tarjetas.error || deudas.error;

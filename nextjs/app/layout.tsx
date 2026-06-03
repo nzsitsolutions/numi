@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthProvider } from '@/lib/auth-context'
 import { NumiProvider } from '@/lib/numi-context'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
@@ -44,9 +45,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <NumiProvider>
-            {children}
-          </NumiProvider>
+          <AuthProvider>
+            <NumiProvider>
+              {children}
+            </NumiProvider>
+          </AuthProvider>
           <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>

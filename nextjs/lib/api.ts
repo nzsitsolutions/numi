@@ -2,6 +2,24 @@ import { CreditCard, Expense, Income, Debt, PendingMovement, ExpenseWithCalculat
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
+let accessTokenGetter: (() => Promise<string | null>) | null = null
+
+export function setAccessTokenGetter(getter: () => Promise<string | null>) {
+  accessTokenGetter = getter
+}
+
+async function authHeaders(extra?: HeadersInit): Promise<HeadersInit> {
+  const token = accessTokenGetter ? await accessTokenGetter() : null
+  if (!token) {
+    throw new Error('No hay sesión activa')
+  }
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+    ...extra,
+  }
+}
+
 // ─── Backend response types ──────────────────────────────────────────────────
 
 interface ApiGastoConCalculo {
@@ -219,10 +237,7 @@ function mapMovimiento(m: ApiMovimiento): PendingMovement {
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers: await authHeaders(options?.headers),
   })
   if (!res.ok) {
     let message = `Error ${res.status}`
@@ -243,9 +258,15 @@ function del(path: string) { return apiFetch<void>(path, { method: 'DELETE' }) }
 
 // Upload: multipart/form-data
 async function uploadFile(path: string, file: File, fieldName = 'archivo'): Promise<{ data: ImportResult }> {
+  const token = accessTokenGetter ? await accessTokenGetter() : null
+  if (!token) throw new Error('No hay sesión activa')
   const form = new FormData()
   form.append(fieldName, file)
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', body: form })
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    body: form,
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     let message = `Error ${res.status}`
     try { const b = await res.json(); message = b?.message || message } catch { /* ignore */ }
